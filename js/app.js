@@ -382,11 +382,11 @@ async function rendreRueDetail() {
   rueDetailListeEl.innerHTML = "";
   for (const adresse of adresses) {
     const dons = await getDonsByAdresse(adresse.id);
-    rueDetailListeEl.appendChild(creerLigneAdresse(adresse, dons));
+    rueDetailListeEl.appendChild(creerLigneAdresse(adresse, dons, rue, commune));
   }
 }
 
-function creerLigneAdresse(adresse, dons) {
+function creerLigneAdresse(adresse, dons, rue, commune) {
   const li = document.createElement("li");
   li.className = "adresse-item";
 
@@ -395,9 +395,10 @@ function creerLigneAdresse(adresse, dons) {
   const prefixeNom = adresse.nom_famille
     ? `<span class="adresse-nom">${adresse.nom_famille}</span> — `
     : "";
+  const adresseComplete = `${adresse.numero} ${rue?.nom ?? ""}, ${commune?.nom ?? ""}`;
   info.innerHTML = `
     <div class="adresse-ligne">
-      <span>${prefixeNom}n°${adresse.numero}</span>
+      <span>${prefixeNom}${adresseComplete}</span>
       <button type="button" class="btn-modifier" title="Modifier l'adresse">✎</button>
     </div>
     ${adresse.notes ? `<div class="adresse-notes">${adresse.notes}</div>` : ""}
