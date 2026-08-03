@@ -54,9 +54,16 @@ const donAnnulerBtn = document.getElementById("don-annuler");
 const donChoixDonneBtn = document.getElementById("don-choix-donne");
 const donChoixRefuseBtn = document.getElementById("don-choix-refuse");
 const donChampsMontantEl = document.getElementById("don-champs-montant");
+const pavesMontantEl = document.getElementById("pavés-montant");
+const paveMontantAutreBtn = document.getElementById("pave-montant-autre");
+const donMontantAutreInput = document.getElementById("don-montant-autre");
+const paveEspecesBtn = document.getElementById("pave-especes");
+const paveChequeBtn = document.getElementById("pave-cheque");
 
 let adresseCourante = null;
 let refuseSelectionne = false;
+let montantSelectionne = null;
+let modePaiementSelectionne = null;
 
 // Agent actif pour cette session d'écran : soit l'agent réel connecté via
 // Supabase Auth, soit l'agent démo (mode hors-ligne sans compte).
@@ -309,11 +316,55 @@ function definirChoixDon(refuse) {
 donChoixDonneBtn.addEventListener("click", () => definirChoixDon(false));
 donChoixRefuseBtn.addEventListener("click", () => definirChoixDon(true));
 
+// Pavés de montant : soit un montant prédéfini, soit "Autre" qui révèle un
+// champ libre. Un seul pavé actif (vert) à la fois.
+function reinitialiserMontant() {
+  montantSelectionne = null;
+  donMontantAutreInput.hidden = true;
+  donMontantAutreInput.value = "";
+  pavesMontantEl.querySelectorAll(".pave").forEach((btn) => btn.classList.remove("actif"));
+}
+
+pavesMontantEl.querySelectorAll(".pave[data-montant]").forEach((btn) => {
+  btn.addEventListener("click", () => {
+    montantSelectionne = Number(btn.dataset.montant);
+    donMontantAutreInput.hidden = true;
+    pavesMontantEl.querySelectorAll(".pave").forEach((b) => b.classList.remove("actif"));
+    btn.classList.add("actif");
+  });
+});
+
+paveMontantAutreBtn.addEventListener("click", () => {
+  montantSelectionne = null;
+  donMontantAutreInput.hidden = false;
+  donMontantAutreInput.focus();
+  pavesMontantEl.querySelectorAll(".pave").forEach((b) => b.classList.remove("actif"));
+  paveMontantAutreBtn.classList.add("actif");
+});
+
+// Pavés de mode de paiement : Espèces / Chèque, un seul actif (vert) à la fois.
+function reinitialiserModePaiement() {
+  modePaiementSelectionne = null;
+  paveEspecesBtn.classList.remove("actif");
+  paveChequeBtn.classList.remove("actif");
+}
+
+function selectionnerModePaiement(mode) {
+  modePaiementSelectionne = mode;
+  paveEspecesBtn.classList.toggle("actif", mode === "especes");
+  paveChequeBtn.classList.toggle("actif", mode === "cheque");
+}
+
+paveEspecesBtn.addEventListener("click", () => selectionnerModePaiement("especes"));
+paveChequeBtn.addEventListener("click", () => selectionnerModePaiement("cheque"));
+
 function ouvrirDialogDon(adresse) {
   adresseCourante = adresse;
   donAdresseLabel.textContent = `Don - ${adresse.numero} ${adresse.rue}`;
   formDon.reset();
   definirChoixDon(false);
+  reinitialiserMontant();
+  reinitialiserModePaiement();
   dialogDon.showModal();
 }
 
@@ -322,12 +373,18 @@ donAnnulerBtn.addEventListener("click", () => dialogDon.close());
 formDon.addEventListener("submit", async () => {
   if (!adresseCourante) return;
 
+  const montantFinal = refuseSelectionne
+    ? 0
+    : montantSelectionne !== null
+      ? montantSelectionne
+      : parseFloat(donMontantAutreInput.value || "0");
+
   const don = await addDon({
     adresse_id: adresseCourante.id,
     agent_id: agentActuel.id,
     refuse: refuseSelectionne,
-    montant: refuseSelectionne ? 0 : parseFloat(document.getElementById("don-montant").value || "0"),
-    mode_paiement: refuseSelectionne ? null : document.getElementById("don-mode").value,
+    montant: montantFinal,
+    mode_paiement: refuseSelectionne ? null : modePaiementSelectionne,
     nom_donateur: document.getElementById("don-nom").value.trim() || null,
     email_donateur: document.getElementById("don-email").value.trim() || null,
   });

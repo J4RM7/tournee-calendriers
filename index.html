@@ -82,14 +82,22 @@
       </div>
 
       <div id="don-champs-montant">
-        <label for="don-montant">Montant (€)</label>
-        <input type="number" id="don-montant" min="0" step="0.5" inputmode="decimal" />
+        <label>Montant</label>
+        <div class="pavés" id="pavés-montant">
+          <button type="button" class="pave" data-montant="2">2 €</button>
+          <button type="button" class="pave" data-montant="5">5 €</button>
+          <button type="button" class="pave" data-montant="10">10 €</button>
+          <button type="button" class="pave" data-montant="15">15 €</button>
+          <button type="button" class="pave" data-montant="20">20 €</button>
+          <button type="button" class="pave" id="pave-montant-autre">Autre</button>
+        </div>
+        <input type="number" id="don-montant-autre" min="0" step="0.5" inputmode="decimal" placeholder="Montant (€)" hidden />
 
-        <label for="don-mode">Mode de paiement</label>
-        <select id="don-mode">
-          <option value="especes">Espèces</option>
-          <option value="cheque">Chèque</option>
-        </select>
+        <label>Mode de paiement</label>
+        <div class="pavés pavés-mode">
+          <button type="button" class="pave" id="pave-especes" data-mode="especes">Espèces</button>
+          <button type="button" class="pave" id="pave-cheque" data-mode="cheque">Chèque</button>
+        </div>
       </div>
 
       <label for="don-nom">Nom du donateur (optionnel)</label>

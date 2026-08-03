@@ -299,6 +299,37 @@ dialog::backdrop {
   color: white;
 }
 
+.pavés {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.4rem;
+  margin-bottom: 0.5rem;
+}
+
+.pavés-mode {
+  grid-template-columns: repeat(2, 1fr);
+}
+
+.pave {
+  padding: 0.65rem 0.4rem;
+  border: 1px solid var(--bordure);
+  background: white;
+  color: #212121;
+  border-radius: 8px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.pave.actif {
+  background: var(--vert);
+  border-color: var(--vert);
+  color: white;
+}
+
+#don-montant-autre {
+  margin-bottom: 0.5rem;
+}
+
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
