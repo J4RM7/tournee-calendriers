@@ -42,14 +42,8 @@
   </section>
 
   <main id="app" hidden>
-    <div class="rue-header">
-      <h2 id="rue-nom">Chargement…</h2>
-      <div class="rue-stats">
-        <span id="rue-compteur" class="rue-compteur"></span>
-        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
-      </div>
-    </div>
-    <ul id="liste-adresses" class="liste-adresses"></ul>
+    <div id="rues-container"></div>
+    <button type="button" id="btn-ajouter-adresse" class="secondaire pave-pleine-largeur">+ Ajouter une adresse</button>
   </main>
 
   <section id="ecran-admin" hidden>
@@ -139,6 +133,50 @@
       <div class="dialog-actions">
         <button type="button" id="adresse-annuler">Annuler</button>
         <button type="submit" class="primary">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Renommer un groupe rue+commune (icône crayon à côté du titre de rue) -->
+  <dialog id="dialog-renommer-rue">
+    <form id="form-renommer-rue" method="dialog">
+      <h2>Modifier la rue</h2>
+
+      <label for="renommer-rue-nom">Nom de la rue</label>
+      <input type="text" id="renommer-rue-nom" required />
+
+      <label for="renommer-rue-commune">Commune</label>
+      <input type="text" id="renommer-rue-commune" required />
+
+      <div class="dialog-actions">
+        <button type="button" id="renommer-rue-annuler">Annuler</button>
+        <button type="submit" class="primary">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Ajouter une adresse : sur une rue existante, ou une rue supplémentaire
+       en tapant un nom qui n'existe pas encore -->
+  <dialog id="dialog-nouvelle-adresse">
+    <form id="form-nouvelle-adresse" method="dialog">
+      <h2>Ajouter une adresse</h2>
+
+      <label for="nouvelle-adresse-rue">Rue</label>
+      <input type="text" id="nouvelle-adresse-rue" list="rues-existantes" required />
+      <datalist id="rues-existantes"></datalist>
+
+      <label for="nouvelle-adresse-commune">Commune</label>
+      <input type="text" id="nouvelle-adresse-commune" required />
+
+      <label for="nouvelle-adresse-numero">Numéro</label>
+      <input type="text" id="nouvelle-adresse-numero" required />
+
+      <label for="nouvelle-adresse-nom-famille">Nom de famille (optionnel)</label>
+      <input type="text" id="nouvelle-adresse-nom-famille" />
+
+      <div class="dialog-actions">
+        <button type="button" id="nouvelle-adresse-annuler">Annuler</button>
+        <button type="submit" class="primary">Ajouter</button>
       </div>
     </form>
   </dialog>

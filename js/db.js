@@ -171,6 +171,35 @@ export async function updateAdresseInfos(id, champs) {
   return adresse;
 }
 
+export async function addAdresse(champs) {
+  const record = {
+    id: crypto.randomUUID(),
+    latitude: null,
+    longitude: null,
+    passage_1: "a_faire",
+    passage_2: "a_faire",
+    passage_3: "a_faire",
+    notes: null,
+    nom_famille: null,
+    ...champs,
+  };
+  await put("adresses", record);
+  return record;
+}
+
+// Renomme un groupe rue+commune : met à jour toutes les adresses qui
+// partagent exactement cette rue et cette commune dans la tournée.
+export async function renommerRue(tourneeId, ancienRue, ancienneCommune, nouveauRue, nouvelleCommune) {
+  const adresses = await getAdressesByTournee(tourneeId);
+  const concernees = adresses.filter((a) => a.rue === ancienRue && a.commune === ancienneCommune);
+  for (const a of concernees) {
+    a.rue = nouveauRue;
+    a.commune = nouvelleCommune;
+    await put("adresses", a);
+  }
+  return concernees;
+}
+
 export async function addDon(don) {
   const record = {
     id: crypto.randomUUID(),

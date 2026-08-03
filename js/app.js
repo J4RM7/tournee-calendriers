@@ -4,6 +4,8 @@ import {
   getAdressesByTournee,
   updateAdressePassage,
   updateAdresseInfos,
+  addAdresse,
+  renommerRue,
   addDon,
   getDonsByAdresse,
   DEMO_TOURNEE_ID,
@@ -23,10 +25,8 @@ import { listerTournees, listerAgents, creerTournee, affecterAgent, retirerAgent
 const PROCHAIN_ETAT_PASSAGE = { a_faire: "passe", passe: "absent", absent: "a_faire" };
 const LABEL_PASSAGE = { a_faire: "à faire", passe: "passé", absent: "absent" };
 
-const secteurNomEl = document.getElementById("rue-nom");
-const rueCompteurEl = document.getElementById("rue-compteur");
-const progressFillEl = document.getElementById("progress-fill");
-const listeEl = document.getElementById("liste-adresses");
+const ruesContainerEl = document.getElementById("rues-container");
+const btnAjouterAdresse = document.getElementById("btn-ajouter-adresse");
 const statutConnexionEl = document.getElementById("statut-connexion");
 const appEl = document.getElementById("app");
 const agentBadgeEl = document.getElementById("agent-badge");
@@ -71,8 +71,24 @@ const adresseNomFamilleInput = document.getElementById("adresse-nom-famille");
 const adresseObservationInput = document.getElementById("adresse-observation");
 const adresseAnnulerBtn = document.getElementById("adresse-annuler");
 
+const dialogRenommerRue = document.getElementById("dialog-renommer-rue");
+const formRenommerRue = document.getElementById("form-renommer-rue");
+const renommerRueNomInput = document.getElementById("renommer-rue-nom");
+const renommerRueCommuneInput = document.getElementById("renommer-rue-commune");
+const renommerRueAnnulerBtn = document.getElementById("renommer-rue-annuler");
+
+const dialogNouvelleAdresse = document.getElementById("dialog-nouvelle-adresse");
+const formNouvelleAdresse = document.getElementById("form-nouvelle-adresse");
+const nouvelleAdresseRueInput = document.getElementById("nouvelle-adresse-rue");
+const nouvelleAdresseCommuneInput = document.getElementById("nouvelle-adresse-commune");
+const nouvelleAdresseNumeroInput = document.getElementById("nouvelle-adresse-numero");
+const nouvelleAdresseNomFamilleInput = document.getElementById("nouvelle-adresse-nom-famille");
+const nouvelleAdresseAnnulerBtn = document.getElementById("nouvelle-adresse-annuler");
+const ruesExistantesDatalist = document.getElementById("rues-existantes");
+
 let adresseCourante = null;
 let adresseEnEdition = null;
+let rueEnEdition = null;
 let refuseSelectionne = false;
 let recuEnvoyeSelectionne = false;
 let montantSelectionne = null;
@@ -232,30 +248,79 @@ async function afficherAdresses() {
   const tournee = await getTournee(tourneeActuelleId);
 
   if (tournee) {
-    secteurNomEl.textContent = tournee.nom_rue;
     const noms = (tournee.agents || [])
       .map((a) => `${a.prenom} ${a.nom}`.trim())
       .filter(Boolean);
     tourneeInfoEl.textContent = `Tournée n°${tournee.numero}` + (noms.length ? ` — ${noms.join(", ")}` : "");
     tourneeInfoEl.hidden = false;
   } else {
-    secteurNomEl.textContent = "Aucune tournée assignée pour l'instant";
     tourneeInfoEl.hidden = true;
   }
 
   const adresses = tourneeActuelleId ? await getAdressesByTournee(tourneeActuelleId) : [];
-  adresses.sort((a, b) => Number(a.numero) - Number(b.numero));
+
+  ruesContainerEl.innerHTML = "";
+
+  if (!tourneeActuelleId) {
+    ruesContainerEl.innerHTML = `<p class="rue-vide">Aucune tournée assignée pour l'instant</p>`;
+    btnAjouterAdresse.hidden = true;
+    return;
+  }
+  btnAjouterAdresse.hidden = false;
+
+  // Une tournée peut couvrir plusieurs rues (parfois plusieurs communes) :
+  // on regroupe les adresses par rue+commune, chaque groupe ayant son
+  // propre titre, compteur et barre de progression.
+  const groupes = new Map();
+  for (const adresse of adresses) {
+    const cle = `${adresse.rue}|||${adresse.commune}`;
+    if (!groupes.has(cle)) groupes.set(cle, { rue: adresse.rue, commune: adresse.commune, items: [] });
+    groupes.get(cle).items.push(adresse);
+  }
+
+  const clesTriees = [...groupes.keys()].sort((a, b) => a.localeCompare(b, "fr"));
+
+  ruesExistantesDatalist.innerHTML = [...new Set(adresses.map((a) => a.rue))]
+    .map((nom) => `<option value="${nom}"></option>`)
+    .join("");
+
+  for (const cle of clesTriees) {
+    const { rue, commune, items } = groupes.get(cle);
+    items.sort((a, b) => Number(a.numero) - Number(b.numero));
+    ruesContainerEl.appendChild(await creerGroupeRue(rue, commune, items));
+  }
+}
+
+async function creerGroupeRue(rue, commune, adresses) {
+  const groupe = document.createElement("div");
+  groupe.className = "rue-groupe";
 
   const total = adresses.length;
   const traitees = adresses.filter(estAdresseTraitee).length;
-  rueCompteurEl.textContent = `${traitees} / ${total} maison${total > 1 ? "s" : ""}`;
-  progressFillEl.style.width = total ? `${Math.round((traitees / total) * 100)}%` : "0%";
 
-  listeEl.innerHTML = "";
+  const header = document.createElement("div");
+  header.className = "rue-header";
+  header.innerHTML = `
+    <div class="rue-titre">
+      <h2>${rue}, ${commune}</h2>
+      <button type="button" class="btn-modifier" title="Modifier la rue">✎</button>
+    </div>
+    <div class="rue-stats">
+      <span class="rue-compteur">${traitees} / ${total} maison${total > 1 ? "s" : ""}</span>
+      <div class="progress-bar"><div class="progress-fill" style="width: ${total ? Math.round((traitees / total) * 100) : 0}%"></div></div>
+    </div>
+  `;
+  header.querySelector(".btn-modifier").addEventListener("click", () => ouvrirDialogRenommerRue(rue, commune));
+
+  const liste = document.createElement("ul");
+  liste.className = "liste-adresses";
   for (const adresse of adresses) {
     const dons = await getDonsByAdresse(adresse.id);
-    listeEl.appendChild(creerLigneAdresse(adresse, dons));
+    liste.appendChild(creerLigneAdresse(adresse, dons));
   }
+
+  groupe.append(header, liste);
+  return groupe;
 }
 
 function creerLigneAdresse(adresse, dons) {
@@ -354,6 +419,69 @@ formAdresse.addEventListener("submit", async () => {
   });
 
   adresseEnEdition = null;
+  afficherAdresses();
+});
+
+// --- Renommer un groupe rue+commune ---------------------------------------
+function ouvrirDialogRenommerRue(rue, commune) {
+  rueEnEdition = { rue, commune };
+  renommerRueNomInput.value = rue;
+  renommerRueCommuneInput.value = commune;
+  dialogRenommerRue.showModal();
+}
+
+renommerRueAnnulerBtn.addEventListener("click", () => dialogRenommerRue.close());
+
+formRenommerRue.addEventListener("submit", async () => {
+  if (!rueEnEdition) return;
+
+  const nouveauRue = renommerRueNomInput.value.trim();
+  const nouvelleCommune = renommerRueCommuneInput.value.trim();
+
+  const adressesModifiees = await renommerRue(
+    tourneeActuelleId,
+    rueEnEdition.rue,
+    rueEnEdition.commune,
+    nouveauRue,
+    nouvelleCommune
+  );
+  for (const adresse of adressesModifiees) {
+    pousserVersSupabase("adresses", {
+      id: adresse.id,
+      tournee_id: adresse.tournee_id,
+      rue: nouveauRue,
+      commune: nouvelleCommune,
+    });
+  }
+
+  rueEnEdition = null;
+  afficherAdresses();
+});
+
+// --- Ajouter une adresse (sur une rue existante ou une rue supplémentaire) -
+btnAjouterAdresse.addEventListener("click", async () => {
+  formNouvelleAdresse.reset();
+  const tournee = await getTournee(tourneeActuelleId);
+  nouvelleAdresseCommuneInput.value = tournee?.nom_commune || "";
+  dialogNouvelleAdresse.showModal();
+});
+
+nouvelleAdresseAnnulerBtn.addEventListener("click", () => dialogNouvelleAdresse.close());
+
+formNouvelleAdresse.addEventListener("submit", async () => {
+  if (!tourneeActuelleId) return;
+
+  const champs = {
+    tournee_id: tourneeActuelleId,
+    rue: nouvelleAdresseRueInput.value.trim(),
+    commune: nouvelleAdresseCommuneInput.value.trim(),
+    numero: nouvelleAdresseNumeroInput.value.trim(),
+    nom_famille: nouvelleAdresseNomFamilleInput.value.trim() || null,
+  };
+
+  const adresse = await addAdresse(champs);
+  pousserVersSupabase("adresses", adresse);
+
   afficherAdresses();
 });
 

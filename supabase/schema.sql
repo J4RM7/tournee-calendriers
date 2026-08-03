@@ -150,13 +150,15 @@ create policy "ecriture_tournee_agents" on tournee_agents
 create policy "suppr_tournee_agents" on tournee_agents
   for delete using (est_admin());
 
--- adresses : accès aux adresses de ses tournées, ou admin.
+-- adresses : accès aux adresses de ses tournées, ou admin. Un agent peut
+-- aussi créer une adresse (nouvelle rue, maison oubliée) sur ses propres
+-- tournées, pas seulement l'admin.
 create policy "acces_adresses" on adresses
   for select using (est_admin() or tournee_id in (select mes_tournee_ids()));
 create policy "maj_adresses" on adresses
   for update using (est_admin() or tournee_id in (select mes_tournee_ids()));
 create policy "ecriture_adresses" on adresses
-  for insert with check (est_admin());
+  for insert with check (est_admin() or tournee_id in (select mes_tournee_ids()));
 
 -- dons : accès aux dons de ses tournées, ou admin. Saisie par l'agent
 -- affecté à la tournée concernée (ou l'admin).
