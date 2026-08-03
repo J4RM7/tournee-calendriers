@@ -59,9 +59,11 @@ const paveMontantAutreBtn = document.getElementById("pave-montant-autre");
 const donMontantAutreInput = document.getElementById("don-montant-autre");
 const paveEspecesBtn = document.getElementById("pave-especes");
 const paveChequeBtn = document.getElementById("pave-cheque");
+const paveRecuBtn = document.getElementById("pave-recu");
 
 let adresseCourante = null;
 let refuseSelectionne = false;
+let recuEnvoyeSelectionne = false;
 let montantSelectionne = null;
 let modePaiementSelectionne = null;
 
@@ -311,6 +313,7 @@ function definirChoixDon(refuse) {
   donChoixDonneBtn.classList.toggle("actif", !refuse);
   donChoixRefuseBtn.classList.toggle("actif", refuse);
   donChampsMontantEl.hidden = refuse;
+  paveRecuBtn.hidden = refuse;
 }
 
 donChoixDonneBtn.addEventListener("click", () => definirChoixDon(false));
@@ -358,6 +361,20 @@ function selectionnerModePaiement(mode) {
 paveEspecesBtn.addEventListener("click", () => selectionnerModePaiement("especes"));
 paveChequeBtn.addEventListener("click", () => selectionnerModePaiement("cheque"));
 
+// Pavé "Envoyer le reçu" : pour l'instant, marque juste le don comme
+// "reçu envoyé" (colonne dons.recu_envoye), sans envoyer de vrai email.
+// L'envoi automatique (PDF Cerfa 11580 + Resend depuis l'adresse de
+// l'amicale) arrivera une fois ces deux éléments prêts côté association.
+function reinitialiserRecu() {
+  recuEnvoyeSelectionne = false;
+  paveRecuBtn.classList.remove("actif");
+}
+
+paveRecuBtn.addEventListener("click", () => {
+  recuEnvoyeSelectionne = !recuEnvoyeSelectionne;
+  paveRecuBtn.classList.toggle("actif", recuEnvoyeSelectionne);
+});
+
 function ouvrirDialogDon(adresse) {
   adresseCourante = adresse;
   donAdresseLabel.textContent = `Don - ${adresse.numero} ${adresse.rue}`;
@@ -365,6 +382,7 @@ function ouvrirDialogDon(adresse) {
   definirChoixDon(false);
   reinitialiserMontant();
   reinitialiserModePaiement();
+  reinitialiserRecu();
   dialogDon.showModal();
 }
 
@@ -387,6 +405,7 @@ formDon.addEventListener("submit", async () => {
     mode_paiement: refuseSelectionne ? null : modePaiementSelectionne,
     nom_donateur: document.getElementById("don-nom").value.trim() || null,
     email_donateur: document.getElementById("don-email").value.trim() || null,
+    recu_envoye: refuseSelectionne ? false : recuEnvoyeSelectionne,
   });
   pousserVersSupabase("dons", don);
 

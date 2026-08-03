@@ -330,6 +330,11 @@ dialog::backdrop {
   margin-bottom: 0.5rem;
 }
 
+.pave-pleine-largeur {
+  width: 100%;
+  margin-top: 0.75rem;
+}
+
 .dialog-actions {
   display: flex;
   justify-content: flex-end;
