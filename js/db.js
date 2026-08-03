@@ -163,6 +163,14 @@ export async function updateAdressePassage(id, numeroPassage, nouvelEtat) {
   return adresse;
 }
 
+export async function updateAdresseInfos(id, champs) {
+  const adresse = await get("adresses", id);
+  if (!adresse) return;
+  Object.assign(adresse, champs);
+  await put("adresses", adresse);
+  return adresse;
+}
+
 export async function addDon(don) {
   const record = {
     id: crypto.randomUUID(),

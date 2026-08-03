@@ -3,6 +3,7 @@ import {
   getTournee,
   getAdressesByTournee,
   updateAdressePassage,
+  updateAdresseInfos,
   addDon,
   getDonsByAdresse,
   DEMO_TOURNEE_ID,
@@ -61,7 +62,17 @@ const paveEspecesBtn = document.getElementById("pave-especes");
 const paveChequeBtn = document.getElementById("pave-cheque");
 const paveRecuBtn = document.getElementById("pave-recu");
 
+const dialogAdresse = document.getElementById("dialog-adresse");
+const formAdresse = document.getElementById("form-adresse");
+const adresseNumeroInput = document.getElementById("adresse-numero");
+const adresseRueInput = document.getElementById("adresse-rue");
+const adresseCommuneInput = document.getElementById("adresse-commune");
+const adresseNomFamilleInput = document.getElementById("adresse-nom-famille");
+const adresseObservationInput = document.getElementById("adresse-observation");
+const adresseAnnulerBtn = document.getElementById("adresse-annuler");
+
 let adresseCourante = null;
+let adresseEnEdition = null;
 let refuseSelectionne = false;
 let recuEnvoyeSelectionne = false;
 let montantSelectionne = null;
@@ -257,9 +268,13 @@ function creerLigneAdresse(adresse, dons) {
     ? `<span class="adresse-nom">${adresse.nom_famille}</span> — `
     : "";
   info.innerHTML = `
-    <div class="adresse-ligne">${prefixeNom}${adresse.numero} ${adresse.rue}</div>
+    <div class="adresse-ligne">
+      <span>${prefixeNom}${adresse.numero} ${adresse.rue}</span>
+      <button type="button" class="btn-modifier" title="Modifier l'adresse">✎</button>
+    </div>
     ${adresse.notes ? `<div class="adresse-notes">${adresse.notes}</div>` : ""}
   `;
+  info.querySelector(".btn-modifier").addEventListener("click", () => ouvrirDialogAdresse(adresse));
 
   const passagesEl = document.createElement("div");
   passagesEl.className = "passages";
@@ -306,6 +321,41 @@ function creerLigneAdresse(adresse, dons) {
   li.append(info, passagesEl, donBtn);
   return li;
 }
+
+// --- Formulaire de modification d'une adresse -----------------------------
+function ouvrirDialogAdresse(adresse) {
+  adresseEnEdition = adresse;
+  adresseNumeroInput.value = adresse.numero;
+  adresseRueInput.value = adresse.rue;
+  adresseCommuneInput.value = adresse.commune;
+  adresseNomFamilleInput.value = adresse.nom_famille || "";
+  adresseObservationInput.value = adresse.notes || "";
+  dialogAdresse.showModal();
+}
+
+adresseAnnulerBtn.addEventListener("click", () => dialogAdresse.close());
+
+formAdresse.addEventListener("submit", async () => {
+  if (!adresseEnEdition) return;
+
+  const champs = {
+    numero: adresseNumeroInput.value.trim(),
+    rue: adresseRueInput.value.trim(),
+    commune: adresseCommuneInput.value.trim(),
+    nom_famille: adresseNomFamilleInput.value.trim() || null,
+    notes: adresseObservationInput.value.trim() || null,
+  };
+
+  await updateAdresseInfos(adresseEnEdition.id, champs);
+  pousserVersSupabase("adresses", {
+    id: adresseEnEdition.id,
+    tournee_id: adresseEnEdition.tournee_id,
+    ...champs,
+  });
+
+  adresseEnEdition = null;
+  afficherAdresses();
+});
 
 // --- Formulaire don -------------------------------------------------------
 function definirChoixDon(refuse) {
@@ -379,6 +429,9 @@ function ouvrirDialogDon(adresse) {
   adresseCourante = adresse;
   donAdresseLabel.textContent = `Don - ${adresse.numero} ${adresse.rue}`;
   formDon.reset();
+  // Le donateur est par défaut la famille de l'adresse ; reste modifiable
+  // (ex. si c'est un voisin ou un proche qui ouvre la porte).
+  document.getElementById("don-nom").value = adresse.nom_famille || "";
   definirChoixDon(false);
   reinitialiserMontant();
   reinitialiserModePaiement();

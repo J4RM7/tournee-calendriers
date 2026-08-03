@@ -149,6 +149,9 @@ main,
 }
 
 .adresse-info .adresse-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
   font-weight: 600;
   overflow-wrap: anywhere;
 }
@@ -159,7 +162,17 @@ main,
 
 .adresse-info .adresse-notes {
   font-size: 0.8rem;
+  font-style: italic;
   color: var(--gris);
+}
+
+.btn-modifier {
+  background: none;
+  border: none;
+  padding: 0 0.2rem;
+  font-size: 0.85rem;
+  color: var(--gris);
+  flex-shrink: 0;
 }
 
 button {
@@ -251,20 +264,23 @@ dialog::backdrop {
   background: rgba(0, 0, 0, 0.4);
 }
 
-#form-don {
+#form-don,
+#form-adresse {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
 }
 
-#form-don label {
+#form-don label,
+#form-adresse label {
   font-size: 0.8rem;
   color: var(--gris);
   margin-top: 0.4rem;
 }
 
 #form-don input,
-#form-don select {
+#form-don select,
+#form-adresse input {
   font: inherit;
   padding: 0.5rem;
   border: 1px solid var(--bordure);

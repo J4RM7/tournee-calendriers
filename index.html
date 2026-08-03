@@ -115,6 +115,34 @@
     </form>
   </dialog>
 
+  <!-- Formulaire de modification d'une adresse, affiché quand on clique
+       sur l'icône crayon d'une ligne -->
+  <dialog id="dialog-adresse">
+    <form id="form-adresse" method="dialog">
+      <h2>Modifier l'adresse</h2>
+
+      <label for="adresse-numero">Numéro</label>
+      <input type="text" id="adresse-numero" required />
+
+      <label for="adresse-rue">Rue</label>
+      <input type="text" id="adresse-rue" required />
+
+      <label for="adresse-commune">Commune</label>
+      <input type="text" id="adresse-commune" required />
+
+      <label for="adresse-nom-famille">Nom de famille (optionnel)</label>
+      <input type="text" id="adresse-nom-famille" />
+
+      <label for="adresse-observation">Observation (optionnel)</label>
+      <input type="text" id="adresse-observation" placeholder="ex : sonnette en panne, maison abandonnée" />
+
+      <div class="dialog-actions">
+        <button type="button" id="adresse-annuler">Annuler</button>
+        <button type="submit" class="primary">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
   <script type="module" src="/js/app.js"></script>
 </body>
 </html>
