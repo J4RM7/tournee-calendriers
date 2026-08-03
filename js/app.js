@@ -178,8 +178,11 @@ function creerLigneAdresse(adresse) {
 
   const info = document.createElement("div");
   info.className = "adresse-info";
+  const prefixeNom = adresse.nom_famille
+    ? `<span class="adresse-nom">${adresse.nom_famille}</span> — `
+    : "";
   info.innerHTML = `
-    <div class="adresse-ligne">${adresse.numero} ${adresse.rue}</div>
+    <div class="adresse-ligne">${prefixeNom}${adresse.numero} ${adresse.rue}</div>
     <span class="statut-pill ${adresse.statut}">${STATUT_LABELS[adresse.statut]}</span>
     ${adresse.notes ? `<div class="adresse-notes">${adresse.notes}</div>` : ""}
   `;
@@ -204,6 +207,7 @@ function creerLigneAdresse(adresse) {
       numero: adresse.numero,
       rue: adresse.rue,
       commune: adresse.commune,
+      nom_famille: adresse.nom_famille,
       statut: nouveauStatut,
       notes: adresse.notes,
     });

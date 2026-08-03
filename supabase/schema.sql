@@ -51,6 +51,7 @@ create table if not exists adresses (
   numero text not null,
   rue text not null,
   commune text not null,
+  nom_famille text,
   latitude double precision,
   longitude double precision,
   statut text not null default 'a_faire'
@@ -58,6 +59,8 @@ create table if not exists adresses (
   notes text,
   created_at timestamptz not null default now()
 );
+
+alter table adresses add column if not exists nom_famille text;
 
 create index if not exists adresses_secteur_id_idx on adresses (secteur_id);
 

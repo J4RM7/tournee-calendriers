@@ -89,11 +89,11 @@ export async function seedIfEmpty() {
   });
 
   const adressesDemo = [
-    { numero: "2", rue: "Rue de la Mairie", statut: "a_faire" },
-    { numero: "4", rue: "Rue de la Mairie", statut: "a_faire" },
-    { numero: "6", rue: "Rue de la Mairie", statut: "fait" },
-    { numero: "8", rue: "Rue de la Mairie", statut: "absent_repasse" },
-    { numero: "10", rue: "Rue de la Mairie", statut: "a_faire" },
+    { numero: "2", rue: "Rue de la Mairie", statut: "a_faire", nom_famille: "Dupont" },
+    { numero: "4", rue: "Rue de la Mairie", statut: "a_faire", nom_famille: "Martin" },
+    { numero: "6", rue: "Rue de la Mairie", statut: "fait", nom_famille: "Bernard" },
+    { numero: "8", rue: "Rue de la Mairie", statut: "absent_repasse", nom_famille: "Petit" },
+    { numero: "10", rue: "Rue de la Mairie", statut: "a_faire", nom_famille: null },
   ];
 
   for (const [i, a] of adressesDemo.entries()) {
@@ -103,6 +103,7 @@ export async function seedIfEmpty() {
       numero: a.numero,
       rue: a.rue,
       commune: "Sainte-Adresse",
+      nom_famille: a.nom_famille,
       latitude: null,
       longitude: null,
       statut: a.statut,
