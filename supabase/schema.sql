@@ -1,76 +1,89 @@
 -- Schéma de base de données pour la tournée des calendriers.
 -- À exécuter dans Supabase : Dashboard > SQL Editor > New query > coller > Run.
--- Ce script est écrit pour être ré-exécutable sans erreur (IF NOT EXISTS,
--- DROP POLICY IF EXISTS...) si vous l'aviez déjà lancé une première fois.
+--
+-- Ce script repart de zéro (DROP puis CREATE). C'est volontaire et sans
+-- danger ici : au moment où cette version a été écrite, vos tables étaient
+-- vides (vérifié). Si vous avez depuis saisi de vraies données de tournée,
+-- ne lancez pas ce script tel quel — dites-le et on écrira une migration
+-- qui préserve les données à la place d'un reset complet.
 --
 -- Notes de conception :
--- - Chaque table a un "id uuid" généré automatiquement (gen_random_uuid) et
---   un "created_at" pour savoir quand la ligne a été créée (pratique standard,
---   pas demandé explicitement mais quasi gratuit et utile pour déboguer).
--- - Les valeurs de statut/mode de paiement sont stockées en minuscules sans
---   accent ni espace ("a_faire", "especes"...) et contraintes par CHECK :
---   plus sûr qu'un texte libre accentué, l'accent/l'espace ne posent aucun
---   problème pour l'affichage (fait dans le JS), seulement pour le stockage.
--- - agents.user_id relie un agent à son compte de connexion Supabase Auth
---   (email + lien magique, voir js/auth.js). Un agent sans user_id n'a
---   simplement pas encore de compte associé.
--- - RLS (Row Level Security) est scopée par agent : un agent ne voit et ne
---   modifie que les secteurs/adresses/dons qui le concernent (lui ou son
---   binôme), via la fonction mes_agent_ids(). La table "agents" elle-même
---   n'est modifiable que depuis le dashboard Supabase (pas de politique
---   insert/update/delete côté client) : le roster des ~100 agents est géré
---   à la main pour ce MVP.
+-- - "tournée" est le concept central : un numéro (~1 à 50), une rue, et
+--   les pompiers qui l'effectuent (généralement un binôme, parfois plus
+--   pour dépanner) via la table de liaison tournee_agents.
+-- - Chaque adresse a 3 emplacements de passage fixes (passage_1/2/3), plus
+--   simple qu'une table séparée puisque le nombre de passages est plafonné
+--   et connu à l'avance.
+-- - agents.est_admin distingue le compte de l'amicale (qui crée les
+--   tournées et affecte les pompiers) des comptes pompiers normaux.
+-- - RLS : un agent ne voit que les tournées auxquelles il est affecté
+--   (via mes_tournee_ids()) ; un admin voit et gère tout (via est_admin()).
+
+drop table if exists dons cascade;
+drop table if exists adresses cascade;
+drop table if exists tournee_agents cascade;
+drop table if exists tournees cascade;
+drop table if exists agents cascade;
+drop function if exists mes_agent_ids();
+drop function if exists mes_tournee_ids();
+drop function if exists est_admin();
 
 create extension if not exists pgcrypto;
 
--- Sapeurs-pompiers qui participent à la tournée.
-create table if not exists agents (
+-- Sapeurs-pompiers (et le compte administrateur de l'amicale).
+create table agents (
   id uuid primary key default gen_random_uuid(),
   nom text not null,
   prenom text not null,
   binome_id uuid references agents (id),
   user_id uuid unique references auth.users (id) on delete set null,
+  est_admin boolean not null default false,
   created_at timestamptz not null default now()
 );
 
-alter table agents add column if not exists user_id uuid unique references auth.users (id) on delete set null;
-
--- Un secteur = une zone géographique confiée à un agent (ou binôme).
-create table if not exists secteurs (
+-- Une tournée numérotée = une rue à parcourir, confiée à un ou plusieurs agents.
+create table tournees (
   id uuid primary key default gen_random_uuid(),
+  numero integer not null unique check (numero > 0),
   nom_commune text not null,
   nom_rue text not null,
-  agent_id uuid references agents (id),
   created_at timestamptz not null default now()
 );
 
--- Chaque porte à visiter dans un secteur.
-create table if not exists adresses (
+-- Affectation des agents à une tournée (généralement 2, parfois plus).
+create table tournee_agents (
+  tournee_id uuid not null references tournees (id) on delete cascade,
+  agent_id uuid not null references agents (id) on delete cascade,
+  primary key (tournee_id, agent_id)
+);
+
+-- Chaque porte à visiter dans une tournée.
+create table adresses (
   id uuid primary key default gen_random_uuid(),
-  secteur_id uuid not null references secteurs (id) on delete cascade,
+  tournee_id uuid not null references tournees (id) on delete cascade,
   numero text not null,
   rue text not null,
   commune text not null,
   nom_famille text,
   latitude double precision,
   longitude double precision,
-  statut text not null default 'a_faire'
-    check (statut in ('a_faire', 'fait', 'absent_repasse')),
+  passage_1 text not null default 'a_faire' check (passage_1 in ('a_faire', 'passe', 'absent')),
+  passage_2 text not null default 'a_faire' check (passage_2 in ('a_faire', 'passe', 'absent')),
+  passage_3 text not null default 'a_faire' check (passage_3 in ('a_faire', 'passe', 'absent')),
   notes text,
   created_at timestamptz not null default now()
 );
 
-alter table adresses add column if not exists nom_famille text;
+create index adresses_tournee_id_idx on adresses (tournee_id);
 
-create index if not exists adresses_secteur_id_idx on adresses (secteur_id);
-
--- Un don recueilli à une adresse.
-create table if not exists dons (
+-- Un don recueilli à une adresse (ou un refus explicite).
+create table dons (
   id uuid primary key default gen_random_uuid(),
   adresse_id uuid not null references adresses (id) on delete cascade,
   agent_id uuid references agents (id),
-  montant numeric(10, 2) not null check (montant >= 0),
-  mode_paiement text not null check (mode_paiement in ('especes', 'cheque')),
+  refuse boolean not null default false,
+  montant numeric(10, 2) not null default 0 check (montant >= 0),
+  mode_paiement text check (mode_paiement is null or mode_paiement in ('especes', 'cheque')),
   nom_donateur text,
   email_donateur text,
   date timestamptz not null default now(),
@@ -78,70 +91,84 @@ create table if not exists dons (
   created_at timestamptz not null default now()
 );
 
-create index if not exists dons_adresse_id_idx on dons (adresse_id);
+create index dons_adresse_id_idx on dons (adresse_id);
 
 -- Row Level Security -------------------------------------------------------
 
 alter table agents enable row level security;
-alter table secteurs enable row level security;
+alter table tournees enable row level security;
+alter table tournee_agents enable row level security;
 alter table adresses enable row level security;
 alter table dons enable row level security;
 
--- Renvoie les id d'agent auxquels l'utilisateur connecté a droit d'accès :
--- son propre agent, et celui de son binôme (dans les deux sens).
-create or replace function mes_agent_ids()
+-- Vrai si l'utilisateur connecté est le compte de l'amicale (admin).
+create or replace function est_admin()
+returns boolean
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select coalesce((select est_admin from agents where user_id = auth.uid()), false)
+$$;
+
+-- Tournées auxquelles l'utilisateur connecté est affecté.
+create or replace function mes_tournee_ids()
 returns setof uuid
 language sql
 stable
 security definer
 set search_path = public
 as $$
-  select id from agents where user_id = auth.uid()
-  union
-  select binome_id from agents where user_id = auth.uid() and binome_id is not null
-  union
-  select id from agents where binome_id in (select id from agents where user_id = auth.uid())
+  select ta.tournee_id
+  from tournee_agents ta
+  join agents a on a.id = ta.agent_id
+  where a.user_id = auth.uid()
 $$;
 
-drop policy if exists "authentifie_tout_agents" on agents;
-drop policy if exists "select_soi_meme_agents" on agents;
-create policy "select_soi_meme_agents" on agents
-  for select using (id in (select mes_agent_ids()));
+-- agents : chacun voit sa propre fiche ; l'admin voit tout le monde
+-- (nécessaire pour affecter les agents aux tournées).
+create policy "lecture_agents" on agents
+  for select using (user_id = auth.uid() or est_admin());
 
-drop policy if exists "authentifie_tout_secteurs" on secteurs;
-drop policy if exists "select_mes_secteurs" on secteurs;
-create policy "select_mes_secteurs" on secteurs
-  for select using (agent_id in (select mes_agent_ids()));
+-- tournees : visibles si affecté dessus, ou admin. Gestion réservée à l'admin.
+create policy "lecture_tournees" on tournees
+  for select using (est_admin() or id in (select mes_tournee_ids()));
+create policy "ecriture_tournees" on tournees
+  for insert with check (est_admin());
+create policy "maj_tournees" on tournees
+  for update using (est_admin());
+create policy "suppr_tournees" on tournees
+  for delete using (est_admin());
 
-drop policy if exists "authentifie_tout_adresses" on adresses;
-drop policy if exists "acces_mes_adresses" on adresses;
-create policy "acces_mes_adresses" on adresses
+-- tournee_agents : voir les coéquipiers de ses propres tournées, ou admin.
+-- Affectation réservée à l'admin.
+create policy "lecture_tournee_agents" on tournee_agents
+  for select using (est_admin() or tournee_id in (select mes_tournee_ids()));
+create policy "ecriture_tournee_agents" on tournee_agents
+  for insert with check (est_admin());
+create policy "suppr_tournee_agents" on tournee_agents
+  for delete using (est_admin());
+
+-- adresses : accès aux adresses de ses tournées, ou admin.
+create policy "acces_adresses" on adresses
+  for select using (est_admin() or tournee_id in (select mes_tournee_ids()));
+create policy "maj_adresses" on adresses
+  for update using (est_admin() or tournee_id in (select mes_tournee_ids()));
+create policy "ecriture_adresses" on adresses
+  for insert with check (est_admin());
+
+-- dons : accès aux dons de ses tournées, ou admin. Saisie par l'agent
+-- affecté à la tournée concernée (ou l'admin).
+create policy "acces_dons" on dons
   for select using (
-    secteur_id in (select id from secteurs where agent_id in (select mes_agent_ids()))
+    est_admin() or adresse_id in (select id from adresses where tournee_id in (select mes_tournee_ids()))
   );
-drop policy if exists "maj_mes_adresses" on adresses;
-create policy "maj_mes_adresses" on adresses
-  for update using (
-    secteur_id in (select id from secteurs where agent_id in (select mes_agent_ids()))
-  );
-
-drop policy if exists "authentifie_tout_dons" on dons;
-drop policy if exists "acces_mes_dons" on dons;
-create policy "acces_mes_dons" on dons
-  for select using (
-    adresse_id in (
-      select a.id from adresses a
-      join secteurs s on s.id = a.secteur_id
-      where s.agent_id in (select mes_agent_ids())
-    )
-  );
-drop policy if exists "ajout_mes_dons" on dons;
-create policy "ajout_mes_dons" on dons
+create policy "ajout_dons" on dons
   for insert with check (
-    agent_id in (select mes_agent_ids())
-    and adresse_id in (
-      select a.id from adresses a
-      join secteurs s on s.id = a.secteur_id
-      where s.agent_id in (select mes_agent_ids())
+    est_admin()
+    or (
+      agent_id in (select id from agents where user_id = auth.uid())
+      and adresse_id in (select id from adresses where tournee_id in (select mes_tournee_ids()))
     )
   );

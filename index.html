@@ -15,8 +15,12 @@
 </head>
 <body>
   <header class="app-header">
-    <h1>Tournée Calendriers</h1>
+    <div class="header-titre">
+      <h1>Tournée Calendriers</h1>
+      <span id="tournee-info" class="tournee-info" hidden></span>
+    </div>
     <div class="header-right">
+      <button id="btn-admin" class="secondaire" hidden>Administration</button>
       <span id="agent-badge" class="badge" hidden></span>
       <button id="btn-deconnexion" class="secondaire" hidden>Déconnexion</button>
       <span id="statut-connexion" class="badge">…</span>
@@ -38,24 +42,55 @@
   </section>
 
   <main id="app" hidden>
-    <p id="secteur-nom" class="secteur-nom">Chargement du secteur…</p>
+    <div class="rue-header">
+      <h2 id="rue-nom">Chargement…</h2>
+      <div class="rue-stats">
+        <span id="rue-compteur" class="rue-compteur"></span>
+        <div class="progress-bar"><div id="progress-fill" class="progress-fill"></div></div>
+      </div>
+    </div>
     <ul id="liste-adresses" class="liste-adresses"></ul>
   </main>
 
-  <!-- Formulaire de saisie d'un don, affiché au-dessus de la liste quand on
-       clique sur une adresse -->
+  <section id="ecran-admin" hidden>
+    <div class="admin-bloc">
+      <h2>Créer une tournée</h2>
+      <form id="form-nouvelle-tournee" class="form-inline">
+        <input type="number" id="admin-numero" placeholder="N° tournée" min="1" required />
+        <input type="text" id="admin-commune" placeholder="Commune" required />
+        <input type="text" id="admin-rue" placeholder="Rue" required />
+        <button type="submit" class="primary">Créer</button>
+      </form>
+      <p id="admin-message" class="connexion-message"></p>
+    </div>
+
+    <div class="admin-bloc">
+      <h2>Tournées</h2>
+      <ul id="admin-liste-tournees" class="admin-liste-tournees"></ul>
+    </div>
+  </section>
+
+  <!-- Formulaire de saisie d'un don, affiché quand on clique sur la case
+       "don" d'une adresse -->
   <dialog id="dialog-don">
     <form id="form-don" method="dialog">
       <h2 id="don-adresse-label">Don</h2>
 
-      <label for="don-montant">Montant (€)</label>
-      <input type="number" id="don-montant" min="0" step="0.5" inputmode="decimal" />
+      <div class="don-choix">
+        <button type="button" id="don-choix-donne" class="choix-btn actif">A donné</button>
+        <button type="button" id="don-choix-refuse" class="choix-btn">A refusé</button>
+      </div>
 
-      <label for="don-mode">Mode de paiement</label>
-      <select id="don-mode">
-        <option value="especes">Espèces</option>
-        <option value="cheque">Chèque</option>
-      </select>
+      <div id="don-champs-montant">
+        <label for="don-montant">Montant (€)</label>
+        <input type="number" id="don-montant" min="0" step="0.5" inputmode="decimal" />
+
+        <label for="don-mode">Mode de paiement</label>
+        <select id="don-mode">
+          <option value="especes">Espèces</option>
+          <option value="cheque">Chèque</option>
+        </select>
+      </div>
 
       <label for="don-nom">Nom du donateur (optionnel)</label>
       <input type="text" id="don-nom" />
@@ -65,7 +100,7 @@
 
       <div class="dialog-actions">
         <button type="button" id="don-annuler">Annuler</button>
-        <button type="submit" id="don-valider" class="primary">Enregistrer le don</button>
+        <button type="submit" id="don-valider" class="primary">Enregistrer</button>
       </div>
     </form>
   </dialog>
