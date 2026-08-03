@@ -1,5 +1,7 @@
 -- Schéma de base de données pour la tournée des calendriers.
 -- À exécuter dans Supabase : Dashboard > SQL Editor > New query > coller > Run.
+-- Ce script est écrit pour être ré-exécutable sans erreur (IF NOT EXISTS,
+-- DROP POLICY IF EXISTS...) si vous l'aviez déjà lancé une première fois.
 --
 -- Notes de conception :
 -- - Chaque table a un "id uuid" généré automatiquement (gen_random_uuid) et
@@ -9,10 +11,15 @@
 --   accent ni espace ("a_faire", "especes"...) et contraintes par CHECK :
 --   plus sûr qu'un texte libre accentué, l'accent/l'espace ne posent aucun
 --   problème pour l'affichage (fait dans le JS), seulement pour le stockage.
--- - RLS (Row Level Security) est activée avec une politique simple qui
---   autorise tout utilisateur authentifié à tout faire. C'est volontairement
---   permissif pour ce MVP ; à durcir dans une prochaine étape (ex: un agent
---   ne devrait modifier que les adresses de son propre secteur).
+-- - agents.user_id relie un agent à son compte de connexion Supabase Auth
+--   (email + lien magique, voir js/auth.js). Un agent sans user_id n'a
+--   simplement pas encore de compte associé.
+-- - RLS (Row Level Security) est scopée par agent : un agent ne voit et ne
+--   modifie que les secteurs/adresses/dons qui le concernent (lui ou son
+--   binôme), via la fonction mes_agent_ids(). La table "agents" elle-même
+--   n'est modifiable que depuis le dashboard Supabase (pas de politique
+--   insert/update/delete côté client) : le roster des ~100 agents est géré
+--   à la main pour ce MVP.
 
 create extension if not exists pgcrypto;
 
@@ -22,8 +29,11 @@ create table if not exists agents (
   nom text not null,
   prenom text not null,
   binome_id uuid references agents (id),
+  user_id uuid unique references auth.users (id) on delete set null,
   created_at timestamptz not null default now()
 );
+
+alter table agents add column if not exists user_id uuid unique references auth.users (id) on delete set null;
 
 -- Un secteur = une zone géographique confiée à un agent (ou binôme).
 create table if not exists secteurs (
@@ -74,14 +84,61 @@ alter table secteurs enable row level security;
 alter table adresses enable row level security;
 alter table dons enable row level security;
 
-create policy "authentifie_tout_agents" on agents
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+-- Renvoie les id d'agent auxquels l'utilisateur connecté a droit d'accès :
+-- son propre agent, et celui de son binôme (dans les deux sens).
+create or replace function mes_agent_ids()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select id from agents where user_id = auth.uid()
+  union
+  select binome_id from agents where user_id = auth.uid() and binome_id is not null
+  union
+  select id from agents where binome_id in (select id from agents where user_id = auth.uid())
+$$;
 
-create policy "authentifie_tout_secteurs" on secteurs
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+drop policy if exists "authentifie_tout_agents" on agents;
+drop policy if exists "select_soi_meme_agents" on agents;
+create policy "select_soi_meme_agents" on agents
+  for select using (id in (select mes_agent_ids()));
 
-create policy "authentifie_tout_adresses" on adresses
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+drop policy if exists "authentifie_tout_secteurs" on secteurs;
+drop policy if exists "select_mes_secteurs" on secteurs;
+create policy "select_mes_secteurs" on secteurs
+  for select using (agent_id in (select mes_agent_ids()));
 
-create policy "authentifie_tout_dons" on dons
-  for all using (auth.role() = 'authenticated') with check (auth.role() = 'authenticated');
+drop policy if exists "authentifie_tout_adresses" on adresses;
+drop policy if exists "acces_mes_adresses" on adresses;
+create policy "acces_mes_adresses" on adresses
+  for select using (
+    secteur_id in (select id from secteurs where agent_id in (select mes_agent_ids()))
+  );
+drop policy if exists "maj_mes_adresses" on adresses;
+create policy "maj_mes_adresses" on adresses
+  for update using (
+    secteur_id in (select id from secteurs where agent_id in (select mes_agent_ids()))
+  );
+
+drop policy if exists "authentifie_tout_dons" on dons;
+drop policy if exists "acces_mes_dons" on dons;
+create policy "acces_mes_dons" on dons
+  for select using (
+    adresse_id in (
+      select a.id from adresses a
+      join secteurs s on s.id = a.secteur_id
+      where s.agent_id in (select mes_agent_ids())
+    )
+  );
+drop policy if exists "ajout_mes_dons" on dons;
+create policy "ajout_mes_dons" on dons
+  for insert with check (
+    agent_id in (select mes_agent_ids())
+    and adresse_id in (
+      select a.id from adresses a
+      join secteurs s on s.id = a.secteur_id
+      where s.agent_id in (select mes_agent_ids())
+    )
+  );

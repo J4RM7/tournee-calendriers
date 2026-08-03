@@ -11,6 +11,10 @@
   box-sizing: border-box;
 }
 
+[hidden] {
+  display: none !important;
+}
+
 body {
   margin: 0;
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
@@ -33,6 +37,17 @@ body {
 .app-header h1 {
   font-size: 1.1rem;
   margin: 0;
+}
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.header-right button {
+  padding: 0.3rem 0.6rem;
+  font-size: 0.8rem;
 }
 
 .badge {
@@ -162,5 +177,64 @@ dialog::backdrop {
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+  margin-top: 1rem;
+}
+
+#ecran-connexion {
+  display: flex;
+  justify-content: center;
+  padding: 2rem 1rem;
+}
+
+.connexion-carte {
+  background: white;
+  border: 1px solid var(--bordure);
+  border-radius: 12px;
+  padding: 1.5rem;
+  width: 100%;
+  max-width: 380px;
+}
+
+.connexion-carte h2 {
+  margin-top: 0;
+}
+
+.connexion-carte p {
+  color: var(--gris);
+  font-size: 0.85rem;
+}
+
+#form-connexion {
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+#form-connexion label {
+  font-size: 0.8rem;
+  color: var(--gris);
+}
+
+#form-connexion input {
+  font: inherit;
+  padding: 0.6rem;
+  border: 1px solid var(--bordure);
+  border-radius: 6px;
+}
+
+#form-connexion button {
+  margin-top: 0.5rem;
+}
+
+.connexion-message {
+  min-height: 1.2em;
+  font-size: 0.85rem;
+}
+
+.connexion-message.erreur { color: var(--rouge); }
+.connexion-message.succes { color: var(--vert); }
+
+#btn-mode-demo {
+  width: 100%;
   margin-top: 1rem;
 }

@@ -16,10 +16,28 @@
 <body>
   <header class="app-header">
     <h1>Tournée Calendriers</h1>
-    <span id="statut-connexion" class="badge">…</span>
+    <div class="header-right">
+      <span id="agent-badge" class="badge" hidden></span>
+      <button id="btn-deconnexion" class="secondaire" hidden>Déconnexion</button>
+      <span id="statut-connexion" class="badge">…</span>
+    </div>
   </header>
 
-  <main id="app">
+  <section id="ecran-connexion" hidden>
+    <div class="connexion-carte">
+      <h2>Connexion</h2>
+      <p>Entrez votre email de caserne : vous recevrez un lien de connexion à usage unique, pas de mot de passe à retenir.</p>
+      <form id="form-connexion">
+        <label for="connexion-email">Email</label>
+        <input type="email" id="connexion-email" required placeholder="prenom.nom@centre-secours.fr" />
+        <button type="submit" class="primary">Recevoir un lien de connexion</button>
+      </form>
+      <p id="connexion-message" class="connexion-message"></p>
+      <button id="btn-mode-demo" class="secondaire">Continuer en mode démo (sans compte)</button>
+    </div>
+  </section>
+
+  <main id="app" hidden>
     <p id="secteur-nom" class="secteur-nom">Chargement du secteur…</p>
     <ul id="liste-adresses" class="liste-adresses"></ul>
   </main>

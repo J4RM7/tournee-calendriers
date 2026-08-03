@@ -8,6 +8,14 @@ import {
   DEMO_AGENT_ID,
 } from "./db.js";
 import { getSupabaseClient } from "./supabaseClient.js";
+import {
+  getSession,
+  envoyerLienConnexion,
+  deconnecter,
+  ecouterChangementsAuth,
+  getAgentPourUtilisateur,
+} from "./auth.js";
+import { synchroniserDonneesAgent } from "./sync.js";
 
 const STATUT_LABELS = {
   a_faire: "À faire",
@@ -18,6 +26,15 @@ const STATUT_LABELS = {
 const secteurNomEl = document.getElementById("secteur-nom");
 const listeEl = document.getElementById("liste-adresses");
 const statutConnexionEl = document.getElementById("statut-connexion");
+const appEl = document.getElementById("app");
+const agentBadgeEl = document.getElementById("agent-badge");
+const btnDeconnexion = document.getElementById("btn-deconnexion");
+
+const ecranConnexionEl = document.getElementById("ecran-connexion");
+const formConnexion = document.getElementById("form-connexion");
+const connexionEmailInput = document.getElementById("connexion-email");
+const connexionMessageEl = document.getElementById("connexion-message");
+const btnModeDemo = document.getElementById("btn-mode-demo");
 
 const dialogDon = document.getElementById("dialog-don");
 const formDon = document.getElementById("form-don");
@@ -25,6 +42,12 @@ const donAdresseLabel = document.getElementById("don-adresse-label");
 const donAnnulerBtn = document.getElementById("don-annuler");
 
 let adresseCourante = null;
+
+// Agent actif pour cette session d'écran : soit l'agent réel connecté via
+// Supabase Auth, soit l'agent démo (mode hors-ligne sans compte).
+let agentActuel = null;
+let secteurActuelId = null;
+let modeDemo = false;
 
 // --- Service worker ---------------------------------------------------
 if ("serviceWorker" in navigator) {
@@ -45,14 +68,102 @@ window.addEventListener("online", majStatutConnexion);
 window.addEventListener("offline", majStatutConnexion);
 majStatutConnexion();
 
+// --- Écrans : connexion vs application -----------------------------------
+function afficherEcranConnexion() {
+  ecranConnexionEl.hidden = false;
+  appEl.hidden = true;
+  agentBadgeEl.hidden = true;
+  btnDeconnexion.hidden = true;
+}
+
+function afficherApp() {
+  ecranConnexionEl.hidden = true;
+  appEl.hidden = false;
+
+  if (modeDemo) {
+    agentBadgeEl.textContent = "Mode démo";
+    agentBadgeEl.hidden = false;
+    btnDeconnexion.hidden = true;
+  } else {
+    agentBadgeEl.textContent = `${agentActuel.prenom} ${agentActuel.nom}`;
+    agentBadgeEl.hidden = false;
+    btnDeconnexion.hidden = false;
+  }
+
+  afficherAdresses();
+}
+
+function afficherMessageConnexion(texte, type) {
+  connexionMessageEl.textContent = texte;
+  connexionMessageEl.className = "connexion-message" + (type ? " " + type : "");
+}
+
+// --- Connexion (lien magique) ---------------------------------------------
+async function connecterAvecSession(session) {
+  const supabase = await getSupabaseClient();
+  const agent = await getAgentPourUtilisateur(session.user.id);
+
+  if (!agent) {
+    afficherMessageConnexion(
+      "Connecté, mais aucune fiche agent n'est encore associée à cet email. Contactez le responsable de la tournée.",
+      "erreur"
+    );
+    afficherEcranConnexion();
+    return;
+  }
+
+  agentActuel = agent;
+  modeDemo = false;
+
+  try {
+    const secteurs = await synchroniserDonneesAgent(supabase, agent);
+    secteurActuelId = secteurs[0]?.id ?? secteurActuelId;
+  } catch (err) {
+    console.warn("[sync] échec de la synchronisation initiale :", err.message);
+  }
+
+  afficherApp();
+}
+
+function activerModeDemo() {
+  agentActuel = { id: DEMO_AGENT_ID };
+  modeDemo = true;
+  secteurActuelId = DEMO_SECTEUR_ID;
+  afficherApp();
+}
+
+formConnexion.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const email = connexionEmailInput.value.trim();
+  if (!email) return;
+
+  afficherMessageConnexion("Envoi du lien en cours…");
+  try {
+    await envoyerLienConnexion(email);
+    afficherMessageConnexion("Lien envoyé ! Vérifiez votre boîte mail.", "succes");
+  } catch (err) {
+    afficherMessageConnexion("Échec de l'envoi : " + err.message, "erreur");
+  }
+});
+
+btnModeDemo.addEventListener("click", activerModeDemo);
+
+btnDeconnexion.addEventListener("click", async () => {
+  await deconnecter();
+  agentActuel = null;
+  secteurActuelId = null;
+  modeDemo = false;
+  afficherEcranConnexion();
+});
+
 // --- Affichage de la liste ----------------------------------------------
 async function afficherAdresses() {
-  const secteur = await getSecteur(DEMO_SECTEUR_ID);
+  const secteur = await getSecteur(secteurActuelId);
   secteurNomEl.textContent = secteur
     ? `${secteur.nom_rue}, ${secteur.nom_commune}`
-    : "Secteur inconnu";
+    : "Aucun secteur assigné pour l'instant";
 
-  const adresses = await getAdressesBySecteur(DEMO_SECTEUR_ID);
+  const adresses = secteurActuelId ? await getAdressesBySecteur(secteurActuelId) : [];
   adresses.sort((a, b) => Number(a.numero) - Number(b.numero));
 
   listeEl.innerHTML = "";
@@ -124,7 +235,7 @@ formDon.addEventListener("submit", async () => {
 
   const don = await addDon({
     adresse_id: adresseCourante.id,
-    agent_id: DEMO_AGENT_ID,
+    agent_id: agentActuel.id,
     montant,
     mode_paiement,
     nom_donateur: nom_donateur || null,
@@ -140,12 +251,15 @@ formDon.addEventListener("submit", async () => {
 });
 
 // --- Synchronisation "au mieux" vers Supabase ------------------------------
-// Écriture best-effort : si Supabase est configuré et joignable, on y
-// recopie aussi la donnée. En cas d'échec (hors-ligne, pas configuré...),
-// on se contente de logguer : IndexedDB reste la donnée de référence pour
-// l'écran. Une vraie file d'attente de synchronisation (pour rattraper les
-// écritures faites hors-ligne) sera ajoutée à une étape suivante.
+// Écriture best-effort : si Supabase est configuré, joignable, et qu'on est
+// connecté avec un vrai compte (pas le mode démo), on y recopie aussi la
+// donnée. En cas d'échec (hors-ligne, pas configuré, mode démo...), on se
+// contente de logguer : IndexedDB reste la donnée de référence pour l'écran.
+// Une vraie file d'attente de synchronisation (pour rattraper les écritures
+// faites hors-ligne) sera ajoutée à une étape suivante.
 async function pousserVersSupabase(table, valeurs) {
+  if (modeDemo) return;
+
   const supabase = await getSupabaseClient();
   if (!supabase) return;
 
@@ -158,7 +272,21 @@ async function pousserVersSupabase(table, valeurs) {
 // --- Démarrage ---------------------------------------------------------
 async function demarrer() {
   await seedIfEmpty();
-  await afficherAdresses();
+
+  const session = await getSession();
+  if (session) {
+    await connecterAvecSession(session);
+  } else {
+    afficherEcranConnexion();
+  }
+
+  ecouterChangementsAuth((session) => {
+    if (session) {
+      connecterAvecSession(session);
+    } else if (!modeDemo) {
+      afficherEcranConnexion();
+    }
+  });
 }
 
 demarrer();
