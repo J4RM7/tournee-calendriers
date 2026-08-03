@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Tournée Calendriers</title>
+
+  <link rel="manifest" href="/manifest.json" />
+  <meta name="theme-color" content="#B71C1C" />
+  <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+  <link rel="stylesheet" href="/css/style.css" />
+</head>
+<body>
+  <header class="app-header">
+    <h1>Tournée Calendriers</h1>
+    <span id="statut-connexion" class="badge">…</span>
+  </header>
+
+  <main id="app">
+    <p id="secteur-nom" class="secteur-nom">Chargement du secteur…</p>
+    <ul id="liste-adresses" class="liste-adresses"></ul>
+  </main>
+
+  <!-- Formulaire de saisie d'un don, affiché au-dessus de la liste quand on
+       clique sur une adresse -->
+  <dialog id="dialog-don">
+    <form id="form-don" method="dialog">
+      <h2 id="don-adresse-label">Don</h2>
+
+      <label for="don-montant">Montant (€)</label>
+      <input type="number" id="don-montant" min="0" step="0.5" inputmode="decimal" />
+
+      <label for="don-mode">Mode de paiement</label>
+      <select id="don-mode">
+        <option value="especes">Espèces</option>
+        <option value="cheque">Chèque</option>
+      </select>
+
+      <label for="don-nom">Nom du donateur (optionnel)</label>
+      <input type="text" id="don-nom" />
+
+      <label for="don-email">Email du donateur (optionnel, pour le reçu plus tard)</label>
+      <input type="email" id="don-email" />
+
+      <div class="dialog-actions">
+        <button type="button" id="don-annuler">Annuler</button>
+        <button type="submit" id="don-valider" class="primary">Enregistrer le don</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script type="module" src="/js/app.js"></script>
+</body>
+</html>

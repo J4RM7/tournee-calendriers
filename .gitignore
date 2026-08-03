@@ -1,0 +1,5 @@
+js/config.js
+.vercel
+.DS_Store
+.env
+.env.local
