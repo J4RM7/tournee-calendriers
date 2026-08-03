@@ -1,17 +1,18 @@
 // Récupère depuis Supabase les tournées de l'agent connecté (avec les
-// agents co-affectés, pour le ruban en haut) et les adresses associées, et
-// les copie dans IndexedDB. Synchronisation descendante simple, à sens
-// unique, lancée une fois après connexion : elle ne gère pas les conflits
-// ni les écritures faites hors-ligne pendant une session précédente (file
-// d'attente prévue pour une étape suivante).
+// agents co-affectés, pour le ruban en haut) et toute la hiérarchie
+// communes -> rues -> adresses, et les copie dans IndexedDB.
+// Synchronisation descendante simple, à sens unique, lancée une fois après
+// connexion : elle ne gère pas les conflits ni les écritures faites
+// hors-ligne pendant une session précédente (file d'attente prévue pour
+// une étape suivante).
 import { put } from "./db.js";
 
 export async function synchroniserDonneesAgent(supabase, agent) {
-  // PostgREST embarque les lignes liées via les clés étrangères déclarées
-  // dans schema.sql (tournee_agents -> agents), en une seule requête.
+  // PostgREST embarque toute la hiérarchie en une seule requête, via les
+  // clés étrangères déclarées dans schema.sql.
   const { data: tournees, error } = await supabase
     .from("tournees")
-    .select("*, tournee_agents(agents(id, nom, prenom))");
+    .select("*, tournee_agents(agents(id, nom, prenom)), communes(*, rues(*, adresses(*)))");
 
   if (error) throw error;
 
@@ -23,18 +24,19 @@ export async function synchroniserDonneesAgent(supabase, agent) {
       nom_rue: t.nom_rue,
       agents: (t.tournee_agents || []).map((ta) => ta.agents).filter(Boolean),
     });
-  }
 
-  for (const t of tournees) {
-    const { data: adresses, error: errAdresses } = await supabase
-      .from("adresses")
-      .select("*")
-      .eq("tournee_id", t.id);
+    for (const commune of t.communes || []) {
+      const { rues, ...communeSansRues } = commune;
+      await put("communes", communeSansRues);
 
-    if (errAdresses) throw errAdresses;
+      for (const rue of rues || []) {
+        const { adresses, ...rueSansAdresses } = rue;
+        await put("rues", rueSansAdresses);
 
-    for (const adresse of adresses) {
-      await put("adresses", adresse);
+        for (const adresse of adresses || []) {
+          await put("adresses", adresse);
+        }
+      }
     }
   }
 

@@ -3,15 +3,19 @@
 // d'abord, ce qui fait qu'elle fonctionne même sans réseau et même sans
 // Supabase configuré. La synchronisation avec Supabase (quand elle est
 // disponible) est gérée en plus, dans app.js/sync.js, pas ici.
+//
+// Hiérarchie : tournée -> communes -> rues -> adresses -> dons.
 
 const DB_NAME = "tournee-calendriers";
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 // Identifiants "démo" utilisés tant qu'on n'est pas connecté à un vrai
 // compte (mode démo hors-ligne, sans backend).
 export const DEMO_AGENT_ID = "demo-agent-1";
 export const DEMO_AGENT_2_ID = "demo-agent-2";
 export const DEMO_TOURNEE_ID = "demo-tournee-1";
+export const DEMO_COMMUNE_ID = "demo-commune-1";
+export const DEMO_RUE_ID = "demo-rue-1";
 
 let dbPromise = null;
 
@@ -24,23 +28,26 @@ function openDB() {
     request.onupgradeneeded = (event) => {
       const db = request.result;
 
-      // v1 utilisait un store "secteurs" ; le modèle "tournées" (v2) le
-      // remplace. On repart d'un store propre plutôt que de migrer des
-      // données de démo qui n'ont pas besoin d'être préservées.
-      if (event.oldVersion < 2 && db.objectStoreNames.contains("secteurs")) {
-        db.deleteObjectStore("secteurs");
+      // v3 remplace les champs libres adresses.rue/commune par de vraies
+      // tables communes/rues. On repart de stores propres plutôt que de
+      // migrer des données de démo qui n'ont pas besoin d'être préservées.
+      if (event.oldVersion < 3 && db.objectStoreNames.contains("adresses")) {
+        db.deleteObjectStore("adresses");
       }
       if (!db.objectStoreNames.contains("tournees")) {
         db.createObjectStore("tournees", { keyPath: "id" });
       }
+      if (!db.objectStoreNames.contains("communes")) {
+        const store = db.createObjectStore("communes", { keyPath: "id" });
+        store.createIndex("tournee_id", "tournee_id");
+      }
+      if (!db.objectStoreNames.contains("rues")) {
+        const store = db.createObjectStore("rues", { keyPath: "id" });
+        store.createIndex("commune_id", "commune_id");
+      }
       if (!db.objectStoreNames.contains("adresses")) {
         const store = db.createObjectStore("adresses", { keyPath: "id" });
-        store.createIndex("tournee_id", "tournee_id");
-      } else {
-        const store = request.transaction.objectStore("adresses");
-        if (!store.indexNames.contains("tournee_id")) {
-          store.createIndex("tournee_id", "tournee_id");
-        }
+        store.createIndex("rue_id", "rue_id");
       }
       if (!db.objectStoreNames.contains("dons")) {
         const store = db.createObjectStore("dons", { keyPath: "id" });
@@ -88,7 +95,8 @@ export async function get(storeName, id) {
 
 // Jeu de données de démonstration, inséré une seule fois si la base est
 // vide, pour que l'écran affiche tout de suite quelque chose de concret
-// sans backend connecté.
+// sans backend connecté. Deux rues, pour illustrer la navigation "une rue
+// par page".
 export async function seedIfEmpty() {
   const tournees = await getAll("tournees");
   if (tournees.length > 0) return;
@@ -107,6 +115,18 @@ export async function seedIfEmpty() {
     ],
   });
 
+  await put("communes", {
+    id: DEMO_COMMUNE_ID,
+    tournee_id: DEMO_TOURNEE_ID,
+    nom: "Sainte-Adresse",
+  });
+
+  await put("rues", {
+    id: DEMO_RUE_ID,
+    commune_id: DEMO_COMMUNE_ID,
+    nom: "Rue de la Mairie",
+  });
+
   const adressesDemo = [
     { numero: "2", nom_famille: "Dupont", passage_1: "passe", passage_2: "a_faire", passage_3: "a_faire" },
     { numero: "4", nom_famille: "Martin", passage_1: "absent", passage_2: "a_faire", passage_3: "a_faire" },
@@ -118,10 +138,8 @@ export async function seedIfEmpty() {
   for (const [i, a] of adressesDemo.entries()) {
     await put("adresses", {
       id: `demo-adresse-${i + 1}`,
-      tournee_id: DEMO_TOURNEE_ID,
+      rue_id: DEMO_RUE_ID,
       numero: a.numero,
-      rue: "Rue de la Mairie",
-      commune: "Sainte-Adresse",
       nom_famille: a.nom_famille,
       latitude: null,
       longitude: null,
@@ -151,8 +169,52 @@ export async function getTournee(id) {
   return get("tournees", id);
 }
 
-export async function getAdressesByTournee(tourneeId) {
-  return getAllByIndex("adresses", "tournee_id", tourneeId);
+export async function getCommunesByTournee(tourneeId) {
+  return getAllByIndex("communes", "tournee_id", tourneeId);
+}
+
+export async function getCommune(id) {
+  return get("communes", id);
+}
+
+export async function addCommune(champs) {
+  const record = { id: crypto.randomUUID(), ...champs };
+  await put("communes", record);
+  return record;
+}
+
+export async function updateCommuneNom(id, nom) {
+  const commune = await get("communes", id);
+  if (!commune) return;
+  commune.nom = nom;
+  await put("communes", commune);
+  return commune;
+}
+
+export async function getRuesByCommune(communeId) {
+  return getAllByIndex("rues", "commune_id", communeId);
+}
+
+export async function getRue(id) {
+  return get("rues", id);
+}
+
+export async function addRue(champs) {
+  const record = { id: crypto.randomUUID(), ...champs };
+  await put("rues", record);
+  return record;
+}
+
+export async function updateRueNom(id, nom) {
+  const rue = await get("rues", id);
+  if (!rue) return;
+  rue.nom = nom;
+  await put("rues", rue);
+  return rue;
+}
+
+export async function getAdressesByRue(rueId) {
+  return getAllByIndex("adresses", "rue_id", rueId);
 }
 
 export async function updateAdressePassage(id, numeroPassage, nouvelEtat) {
@@ -185,19 +247,6 @@ export async function addAdresse(champs) {
   };
   await put("adresses", record);
   return record;
-}
-
-// Renomme un groupe rue+commune : met à jour toutes les adresses qui
-// partagent exactement cette rue et cette commune dans la tournée.
-export async function renommerRue(tourneeId, ancienRue, ancienneCommune, nouveauRue, nouvelleCommune) {
-  const adresses = await getAdressesByTournee(tourneeId);
-  const concernees = adresses.filter((a) => a.rue === ancienRue && a.commune === ancienneCommune);
-  for (const a of concernees) {
-    a.rue = nouveauRue;
-    a.commune = nouvelleCommune;
-    await put("adresses", a);
-  }
-  return concernees;
 }
 
 export async function addDon(don) {

@@ -84,15 +84,73 @@ main,
   margin: 0 auto;
 }
 
-.rue-groupe + .rue-groupe {
-  margin-top: 2rem;
-  padding-top: 1.5rem;
-  border-top: 1px solid var(--bordure);
-}
-
 .rue-vide {
   font-weight: 600;
   color: var(--gris);
+}
+
+.btn-retour {
+  background: none;
+  border: none;
+  padding: 0.25rem 0;
+  margin-bottom: 0.75rem;
+  color: var(--gris);
+  font-weight: 600;
+}
+
+.commune-bloc {
+  background: white;
+  border: 1px solid var(--bordure);
+  border-radius: 10px;
+  padding: 1rem;
+  margin-bottom: 1rem;
+}
+
+.commune-titre {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.6rem;
+}
+
+.commune-titre h3 {
+  margin: 0;
+  font-size: 1.1rem;
+  font-weight: 800;
+}
+
+.rues-liste {
+  list-style: none;
+  margin: 0 0 0.6rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.rue-carte {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  padding: 0.6rem 0.8rem;
+  border: 1px solid var(--bordure);
+  border-radius: 8px;
+  cursor: pointer;
+}
+
+.rue-carte:hover {
+  background: var(--fond);
+}
+
+.rue-carte-nom {
+  font-weight: 600;
+}
+
+.rue-carte-stats {
+  font-size: 0.8rem;
+  color: var(--gris);
+  white-space: nowrap;
 }
 
 .rue-header {
@@ -285,7 +343,10 @@ dialog::backdrop {
 #form-don,
 #form-adresse,
 #form-renommer-rue,
-#form-nouvelle-adresse {
+#form-nouvelle-adresse,
+#form-nouvelle-commune,
+#form-renommer-commune,
+#form-nouvelle-rue {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
@@ -294,7 +355,10 @@ dialog::backdrop {
 #form-don label,
 #form-adresse label,
 #form-renommer-rue label,
-#form-nouvelle-adresse label {
+#form-nouvelle-adresse label,
+#form-nouvelle-commune label,
+#form-renommer-commune label,
+#form-nouvelle-rue label {
   font-size: 0.8rem;
   color: var(--gris);
   margin-top: 0.4rem;
@@ -304,7 +368,10 @@ dialog::backdrop {
 #form-don select,
 #form-adresse input,
 #form-renommer-rue input,
-#form-nouvelle-adresse input {
+#form-nouvelle-adresse input,
+#form-nouvelle-commune input,
+#form-renommer-commune input,
+#form-nouvelle-rue input {
   font: inherit;
   padding: 0.5rem;
   border: 1px solid var(--bordure);

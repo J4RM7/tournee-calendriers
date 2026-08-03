@@ -42,8 +42,28 @@
   </section>
 
   <main id="app" hidden>
-    <div id="rues-container"></div>
-    <button type="button" id="btn-ajouter-adresse" class="secondaire pave-pleine-largeur">+ Ajouter une adresse</button>
+    <section id="vue-liste-rues">
+      <div id="communes-container"></div>
+      <button type="button" id="btn-ajouter-commune" class="secondaire pave-pleine-largeur">+ Ajouter une commune</button>
+    </section>
+
+    <section id="vue-rue-detail" hidden>
+      <button type="button" id="btn-retour-rues" class="btn-retour">← Toutes les rues</button>
+
+      <div class="rue-header">
+        <div class="rue-titre">
+          <h2 id="rue-detail-nom">…</h2>
+          <button type="button" id="btn-modifier-rue-detail" class="btn-modifier" title="Renommer la rue">✎</button>
+        </div>
+        <div class="rue-stats">
+          <span id="rue-detail-compteur" class="rue-compteur"></span>
+          <div class="progress-bar"><div id="rue-detail-progress" class="progress-fill"></div></div>
+        </div>
+      </div>
+
+      <ul id="rue-detail-liste" class="liste-adresses"></ul>
+      <button type="button" id="btn-ajouter-adresse" class="secondaire pave-pleine-largeur">+ Ajouter une adresse</button>
+    </section>
   </main>
 
   <section id="ecran-admin" hidden>
@@ -118,12 +138,6 @@
       <label for="adresse-numero">Numéro</label>
       <input type="text" id="adresse-numero" required />
 
-      <label for="adresse-rue">Rue</label>
-      <input type="text" id="adresse-rue" required />
-
-      <label for="adresse-commune">Commune</label>
-      <input type="text" id="adresse-commune" required />
-
       <label for="adresse-nom-famille">Nom de famille (optionnel)</label>
       <input type="text" id="adresse-nom-famille" />
 
@@ -137,16 +151,13 @@
     </form>
   </dialog>
 
-  <!-- Renommer un groupe rue+commune (icône crayon à côté du titre de rue) -->
+  <!-- Renommer une rue (icône crayon à côté du titre, écran détail) -->
   <dialog id="dialog-renommer-rue">
     <form id="form-renommer-rue" method="dialog">
-      <h2>Modifier la rue</h2>
+      <h2>Renommer la rue</h2>
 
       <label for="renommer-rue-nom">Nom de la rue</label>
       <input type="text" id="renommer-rue-nom" required />
-
-      <label for="renommer-rue-commune">Commune</label>
-      <input type="text" id="renommer-rue-commune" required />
 
       <div class="dialog-actions">
         <button type="button" id="renommer-rue-annuler">Annuler</button>
@@ -155,18 +166,10 @@
     </form>
   </dialog>
 
-  <!-- Ajouter une adresse : sur une rue existante, ou une rue supplémentaire
-       en tapant un nom qui n'existe pas encore -->
+  <!-- Ajouter une adresse dans la rue actuellement affichée -->
   <dialog id="dialog-nouvelle-adresse">
     <form id="form-nouvelle-adresse" method="dialog">
       <h2>Ajouter une adresse</h2>
-
-      <label for="nouvelle-adresse-rue">Rue</label>
-      <input type="text" id="nouvelle-adresse-rue" list="rues-existantes" required />
-      <datalist id="rues-existantes"></datalist>
-
-      <label for="nouvelle-adresse-commune">Commune</label>
-      <input type="text" id="nouvelle-adresse-commune" required />
 
       <label for="nouvelle-adresse-numero">Numéro</label>
       <input type="text" id="nouvelle-adresse-numero" required />
@@ -176,6 +179,52 @@
 
       <div class="dialog-actions">
         <button type="button" id="nouvelle-adresse-annuler">Annuler</button>
+        <button type="submit" class="primary">Ajouter</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Ajouter une commune -->
+  <dialog id="dialog-nouvelle-commune">
+    <form id="form-nouvelle-commune" method="dialog">
+      <h2>Ajouter une commune</h2>
+
+      <label for="nouvelle-commune-nom">Nom de la commune</label>
+      <input type="text" id="nouvelle-commune-nom" required />
+
+      <div class="dialog-actions">
+        <button type="button" id="nouvelle-commune-annuler">Annuler</button>
+        <button type="submit" class="primary">Ajouter</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Renommer une commune -->
+  <dialog id="dialog-renommer-commune">
+    <form id="form-renommer-commune" method="dialog">
+      <h2>Renommer la commune</h2>
+
+      <label for="renommer-commune-nom">Nom de la commune</label>
+      <input type="text" id="renommer-commune-nom" required />
+
+      <div class="dialog-actions">
+        <button type="button" id="renommer-commune-annuler">Annuler</button>
+        <button type="submit" class="primary">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Ajouter une rue dans une commune (déclenché depuis le bouton de la
+       commune concernée) -->
+  <dialog id="dialog-nouvelle-rue">
+    <form id="form-nouvelle-rue" method="dialog">
+      <h2>Ajouter une rue</h2>
+
+      <label for="nouvelle-rue-nom">Nom de la rue</label>
+      <input type="text" id="nouvelle-rue-nom" required />
+
+      <div class="dialog-actions">
+        <button type="button" id="nouvelle-rue-annuler">Annuler</button>
         <button type="submit" class="primary">Ajouter</button>
       </div>
     </form>

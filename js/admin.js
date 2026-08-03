@@ -6,19 +6,25 @@
 export async function listerTournees(supabase) {
   const { data, error } = await supabase
     .from("tournees")
-    .select("*, tournee_agents(agents(id, nom, prenom)), adresses(id)")
+    .select("*, tournee_agents(agents(id, nom, prenom)), communes(rues(adresses(id)))")
     .order("numero");
 
   if (error) throw error;
 
-  return data.map((t) => ({
-    id: t.id,
-    numero: t.numero,
-    nom_commune: t.nom_commune,
-    nom_rue: t.nom_rue,
-    agents: (t.tournee_agents || []).map((ta) => ta.agents).filter(Boolean),
-    nombreAdresses: (t.adresses || []).length,
-  }));
+  return data.map((t) => {
+    const nombreAdresses = (t.communes || []).reduce(
+      (total, c) => total + (c.rues || []).reduce((sousTotal, r) => sousTotal + (r.adresses || []).length, 0),
+      0
+    );
+    return {
+      id: t.id,
+      numero: t.numero,
+      nom_commune: t.nom_commune,
+      nom_rue: t.nom_rue,
+      agents: (t.tournee_agents || []).map((ta) => ta.agents).filter(Boolean),
+      nombreAdresses,
+    };
+  });
 }
 
 export async function listerAgents(supabase) {

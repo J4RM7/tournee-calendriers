@@ -1,31 +1,30 @@
 -- Schéma de base de données pour la tournée des calendriers.
 -- À exécuter dans Supabase : Dashboard > SQL Editor > New query > coller > Run.
 --
--- Ce script repart de zéro (DROP puis CREATE). C'est volontaire et sans
--- danger ici : au moment où cette version a été écrite, vos tables étaient
--- vides (vérifié). Si vous avez depuis saisi de vraies données de tournée,
--- ne lancez pas ce script tel quel — dites-le et on écrira une migration
--- qui préserve les données à la place d'un reset complet.
+-- Ce script repart de zéro (DROP puis CREATE). Comme pour les versions
+-- précédentes, ne le relancez que si vous êtes d'accord pour perdre les
+-- données déjà saisies sur ce projet Supabase.
 --
 -- Notes de conception :
--- - "tournée" est le concept central : un numéro (~1 à 50), une rue, et
---   les pompiers qui l'effectuent (généralement un binôme, parfois plus
---   pour dépanner) via la table de liaison tournee_agents.
--- - Chaque adresse a 3 emplacements de passage fixes (passage_1/2/3), plus
---   simple qu'une table séparée puisque le nombre de passages est plafonné
---   et connu à l'avance.
--- - agents.est_admin distingue le compte de l'amicale (qui crée les
---   tournées et affecte les pompiers) des comptes pompiers normaux.
--- - RLS : un agent ne voit que les tournées auxquelles il est affecté
---   (via mes_tournee_ids()) ; un admin voit et gère tout (via est_admin()).
+-- - Hiérarchie à trois niveaux, en tables séparées (pas des champs texte
+--   libres) : une tournée contient des communes, une commune contient des
+--   rues, une rue contient des adresses. Ça permet de gérer/renommer
+--   chaque niveau indépendamment et d'afficher une rue à la fois dans
+--   l'app plutôt qu'une grande liste plate.
+-- - Chaque adresse a 3 emplacements de passage fixes (passage_1/2/3).
+-- - agents.est_admin distingue le compte de l'amicale des comptes pompiers.
+-- - RLS en cascade : mes_tournee_ids() -> mes_rue_ids() -> adresses/dons.
 
 drop table if exists dons cascade;
 drop table if exists adresses cascade;
+drop table if exists rues cascade;
+drop table if exists communes cascade;
 drop table if exists tournee_agents cascade;
 drop table if exists tournees cascade;
 drop table if exists agents cascade;
 drop function if exists mes_agent_ids();
 drop function if exists mes_tournee_ids();
+drop function if exists mes_rue_ids();
 drop function if exists est_admin();
 
 create extension if not exists pgcrypto;
@@ -41,7 +40,10 @@ create table agents (
   created_at timestamptz not null default now()
 );
 
--- Une tournée numérotée = une rue à parcourir, confiée à un ou plusieurs agents.
+-- Une tournée numérotée, confiée à un ou plusieurs agents. nom_commune et
+-- nom_rue ne servent qu'à l'étiquette dans l'écran admin ; le vrai contenu
+-- (communes/rues/adresses réellement travaillées) vit dans les tables
+-- ci-dessous, gérées depuis l'app par les agents eux-mêmes.
 create table tournees (
   id uuid primary key default gen_random_uuid(),
   numero integer not null unique check (numero > 0),
@@ -57,13 +59,31 @@ create table tournee_agents (
   primary key (tournee_id, agent_id)
 );
 
--- Chaque porte à visiter dans une tournée.
-create table adresses (
+-- Une commune travaillée dans le cadre d'une tournée.
+create table communes (
   id uuid primary key default gen_random_uuid(),
   tournee_id uuid not null references tournees (id) on delete cascade,
+  nom text not null,
+  created_at timestamptz not null default now()
+);
+
+create index communes_tournee_id_idx on communes (tournee_id);
+
+-- Une rue à l'intérieur d'une commune.
+create table rues (
+  id uuid primary key default gen_random_uuid(),
+  commune_id uuid not null references communes (id) on delete cascade,
+  nom text not null,
+  created_at timestamptz not null default now()
+);
+
+create index rues_commune_id_idx on rues (commune_id);
+
+-- Chaque porte à visiter dans une rue.
+create table adresses (
+  id uuid primary key default gen_random_uuid(),
+  rue_id uuid not null references rues (id) on delete cascade,
   numero text not null,
-  rue text not null,
-  commune text not null,
   nom_famille text,
   latitude double precision,
   longitude double precision,
@@ -74,7 +94,7 @@ create table adresses (
   created_at timestamptz not null default now()
 );
 
-create index adresses_tournee_id_idx on adresses (tournee_id);
+create index adresses_rue_id_idx on adresses (rue_id);
 
 -- Un don recueilli à une adresse (ou un refus explicite).
 create table dons (
@@ -98,6 +118,8 @@ create index dons_adresse_id_idx on dons (adresse_id);
 alter table agents enable row level security;
 alter table tournees enable row level security;
 alter table tournee_agents enable row level security;
+alter table communes enable row level security;
+alter table rues enable row level security;
 alter table adresses enable row level security;
 alter table dons enable row level security;
 
@@ -126,6 +148,20 @@ as $$
   where a.user_id = auth.uid()
 $$;
 
+-- Rues accessibles à l'utilisateur connecté (via ses tournées).
+create or replace function mes_rue_ids()
+returns setof uuid
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select r.id
+  from rues r
+  join communes c on c.id = r.commune_id
+  where c.tournee_id in (select mes_tournee_ids())
+$$;
+
 -- agents : chacun voit sa propre fiche ; l'admin voit tout le monde
 -- (nécessaire pour affecter les agents aux tournées).
 create policy "lecture_agents" on agents
@@ -150,27 +186,49 @@ create policy "ecriture_tournee_agents" on tournee_agents
 create policy "suppr_tournee_agents" on tournee_agents
   for delete using (est_admin());
 
--- adresses : accès aux adresses de ses tournées, ou admin. Un agent peut
--- aussi créer une adresse (nouvelle rue, maison oubliée) sur ses propres
--- tournées, pas seulement l'admin.
-create policy "acces_adresses" on adresses
+-- communes : un agent peut créer/voir/renommer les communes de ses
+-- propres tournées (pas besoin d'être admin pour ça, contrairement aux
+-- tournées elles-mêmes).
+create policy "acces_communes" on communes
   for select using (est_admin() or tournee_id in (select mes_tournee_ids()));
-create policy "maj_adresses" on adresses
-  for update using (est_admin() or tournee_id in (select mes_tournee_ids()));
-create policy "ecriture_adresses" on adresses
+create policy "ecriture_communes" on communes
   for insert with check (est_admin() or tournee_id in (select mes_tournee_ids()));
+create policy "maj_communes" on communes
+  for update using (est_admin() or tournee_id in (select mes_tournee_ids()));
 
--- dons : accès aux dons de ses tournées, ou admin. Saisie par l'agent
--- affecté à la tournée concernée (ou l'admin).
+-- rues : idem, à l'échelle d'une commune accessible.
+create policy "acces_rues" on rues
+  for select using (
+    est_admin() or commune_id in (select id from communes where tournee_id in (select mes_tournee_ids()))
+  );
+create policy "ecriture_rues" on rues
+  for insert with check (
+    est_admin() or commune_id in (select id from communes where tournee_id in (select mes_tournee_ids()))
+  );
+create policy "maj_rues" on rues
+  for update using (
+    est_admin() or commune_id in (select id from communes where tournee_id in (select mes_tournee_ids()))
+  );
+
+-- adresses : accès aux adresses des rues accessibles, ou admin.
+create policy "acces_adresses" on adresses
+  for select using (est_admin() or rue_id in (select mes_rue_ids()));
+create policy "maj_adresses" on adresses
+  for update using (est_admin() or rue_id in (select mes_rue_ids()));
+create policy "ecriture_adresses" on adresses
+  for insert with check (est_admin() or rue_id in (select mes_rue_ids()));
+
+-- dons : accès aux dons des adresses accessibles, ou admin. Saisie par
+-- l'agent affecté (ou l'admin).
 create policy "acces_dons" on dons
   for select using (
-    est_admin() or adresse_id in (select id from adresses where tournee_id in (select mes_tournee_ids()))
+    est_admin() or adresse_id in (select id from adresses where rue_id in (select mes_rue_ids()))
   );
 create policy "ajout_dons" on dons
   for insert with check (
     est_admin()
     or (
       agent_id in (select id from agents where user_id = auth.uid())
-      and adresse_id in (select id from adresses where tournee_id in (select mes_tournee_ids()))
+      and adresse_id in (select id from adresses where rue_id in (select mes_rue_ids()))
     )
   );
