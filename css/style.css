@@ -137,19 +137,40 @@ main,
 }
 
 .pave-accueil {
-  background: white;
   border: 1px solid var(--bordure);
-  border-radius: 14px;
-  padding: 2rem 1rem;
-  font-size: 1.05rem;
+  border-radius: 16px;
+  padding: 1.25rem 0.75rem;
+  font-size: 0.98rem;
   font-weight: 700;
   text-align: center;
-  color: var(--rouge);
+  color: #212121;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  min-height: 8rem;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .pave-accueil:hover {
-  background: var(--fond);
+  transform: translateY(-2px);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
 }
+
+.pave-accueil:active {
+  transform: translateY(0);
+}
+
+.pave-accueil-icone {
+  font-size: 2.2rem;
+  line-height: 1;
+}
+
+.pave-accueil-tournee { background: #fdeceb; }
+.pave-accueil-carto { background: #e8f1fc; }
+.pave-accueil-compta { background: #e7f6ec; }
+.pave-accueil-fin { background: #fff4e0; }
 
 .admin-tournee-progression {
   font-size: 0.78rem;
