@@ -270,6 +270,14 @@ button.secondaire {
   border: 1px solid var(--bordure);
 }
 
+.adresse-droite {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.4rem;
+  flex-shrink: 0;
+}
+
 .passages {
   display: flex;
   gap: 0.3rem;

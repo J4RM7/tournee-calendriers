@@ -442,7 +442,11 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
   }
   donBtn.addEventListener("click", () => ouvrirDialogDon(adresse));
 
-  li.append(info, passagesEl, donBtn);
+  const droite = document.createElement("div");
+  droite.className = "adresse-droite";
+  droite.append(passagesEl, donBtn);
+
+  li.append(info, droite);
   return li;
 }
 
