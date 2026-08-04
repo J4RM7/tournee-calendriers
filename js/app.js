@@ -593,17 +593,20 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
   ligneDon.appendChild(donBtn);
 
   // Beaucoup de donateurs redemandent "j'ai donné combien l'an dernier ?" :
-  // ce pavé n'est qu'une info (pas cliquable), absent si pas de don l'an
-  // dernier à cette adresse.
+  // ce pavé n'est qu'une info (pas cliquable), affiché sur toutes les lignes
+  // — y compris "aucun don" quand il n'y a rien à montrer, pour que
+  // l'absence d'info soit aussi visible d'un coup d'œil.
   const donAnneePrecedente = trouverDonPourAnnee(dons, anneeCourante - 1);
+  const anneePrecEl = document.createElement("span");
+  anneePrecEl.className = "pave-annee-precedente";
   if (donAnneePrecedente) {
-    const anneePrecEl = document.createElement("span");
-    anneePrecEl.className = "pave-annee-precedente";
     anneePrecEl.textContent = donAnneePrecedente.refuse
       ? `${anneeCourante - 1} : refusé`
       : `${anneeCourante - 1} : ${formaterMontant(donAnneePrecedente.montant)}`;
-    ligneDon.appendChild(anneePrecEl);
+  } else {
+    anneePrecEl.textContent = `${anneeCourante - 1} : aucun don`;
   }
+  ligneDon.appendChild(anneePrecEl);
 
   const droite = document.createElement("div");
   droite.className = "adresse-droite";
