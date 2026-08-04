@@ -3,26 +3,31 @@
 // écrans nécessitent d'être en ligne — pas de cache hors-ligne ici, ce
 // n'est pas ce dont un admin a besoin sur le terrain.
 
+function estAdresseTraitee(adresse) {
+  return [adresse.passage_1, adresse.passage_2, adresse.passage_3].some((p) => p !== "a_faire");
+}
+
 export async function listerTournees(supabase) {
   const { data, error } = await supabase
     .from("tournees")
-    .select("*, tournee_agents(agents(id, nom, prenom)), communes(rues(adresses(id)))")
+    .select(
+      "*, tournee_agents(agents(id, nom, prenom)), communes(rues(adresses(id, passage_1, passage_2, passage_3)))"
+    )
     .order("numero");
 
   if (error) throw error;
 
   return data.map((t) => {
-    const nombreAdresses = (t.communes || []).reduce(
-      (total, c) => total + (c.rues || []).reduce((sousTotal, r) => sousTotal + (r.adresses || []).length, 0),
-      0
-    );
+    const adresses = (t.communes || []).flatMap((c) => (c.rues || []).flatMap((r) => r.adresses || []));
+    const traitees = adresses.filter(estAdresseTraitee).length;
     return {
       id: t.id,
       numero: t.numero,
       nom_commune: t.nom_commune,
       nom_rue: t.nom_rue,
       agents: (t.tournee_agents || []).map((ta) => ta.agents).filter(Boolean),
-      nombreAdresses,
+      nombreAdresses: adresses.length,
+      nombreTraitees: traitees,
     };
   });
 }

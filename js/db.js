@@ -16,6 +16,8 @@ export const DEMO_AGENT_2_ID = "demo-agent-2";
 export const DEMO_TOURNEE_ID = "demo-tournee-1";
 export const DEMO_COMMUNE_ID = "demo-commune-1";
 export const DEMO_RUE_ID = "demo-rue-1";
+export const DEMO_RUE_2_ID = "demo-rue-2";
+export const DEMO_RUE_3_ID = "demo-rue-3";
 
 let dbPromise = null;
 
@@ -95,8 +97,8 @@ export async function get(storeName, id) {
 
 // Jeu de données de démonstration, inséré une seule fois si la base est
 // vide, pour que l'écran affiche tout de suite quelque chose de concret
-// sans backend connecté. Deux rues, pour illustrer la navigation "une rue
-// par page".
+// sans backend connecté. Reprend le scénario réel : tournée n°18, commune
+// de Veyras, 3 rues.
 export async function seedIfEmpty() {
   const tournees = await getAll("tournees");
   if (tournees.length > 0) return;
@@ -104,13 +106,13 @@ export async function seedIfEmpty() {
   await put("tournees", {
     id: DEMO_TOURNEE_ID,
     numero: 18,
-    nom_commune: "Sainte-Adresse",
-    nom_rue: "Rue de la Mairie",
+    nom_commune: "Veyras",
+    nom_rue: "Montée de la Planète",
     // Les infos des agents affectés sont mises en cache directement sur la
     // tournée (pas de jointure côté IndexedDB) : c'est ce que sync.js fait
     // aussi avec les vraies données Supabase.
     agents: [
-      { id: DEMO_AGENT_ID, nom: "Vous", prenom: "" },
+      { id: DEMO_AGENT_ID, nom: "", prenom: "Jérémy" },
       { id: DEMO_AGENT_2_ID, nom: "Dupuis", prenom: "Alexandre" },
     ],
   });
@@ -118,27 +120,31 @@ export async function seedIfEmpty() {
   await put("communes", {
     id: DEMO_COMMUNE_ID,
     tournee_id: DEMO_TOURNEE_ID,
-    nom: "Sainte-Adresse",
+    nom: "Veyras",
   });
 
-  await put("rues", {
-    id: DEMO_RUE_ID,
-    commune_id: DEMO_COMMUNE_ID,
-    nom: "Rue de la Mairie",
-  });
+  await put("rues", { id: DEMO_RUE_ID, commune_id: DEMO_COMMUNE_ID, nom: "Montée de la Planète" });
+  await put("rues", { id: DEMO_RUE_2_ID, commune_id: DEMO_COMMUNE_ID, nom: "Avenue du Ruissol" });
+  await put("rues", { id: DEMO_RUE_3_ID, commune_id: DEMO_COMMUNE_ID, nom: "Chemin de Many" });
+
+  const maintenant = new Date().toISOString();
 
   const adressesDemo = [
-    { numero: "2", nom_famille: "Dupont", passage_1: "passe", passage_2: "a_faire", passage_3: "a_faire" },
-    { numero: "4", nom_famille: "Martin", passage_1: "absent", passage_2: "a_faire", passage_3: "a_faire" },
-    { numero: "6", nom_famille: "Bernard", passage_1: "passe", passage_2: "a_faire", passage_3: "a_faire" },
-    { numero: "8", nom_famille: "Petit", passage_1: "absent", passage_2: "absent", passage_3: "a_faire" },
-    { numero: "10", nom_famille: null, passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire" },
+    { id: "demo-adresse-1", rue_id: DEMO_RUE_ID, numero: "2", nom_famille: "Dupont", passage_1: "passe", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant },
+    { id: "demo-adresse-2", rue_id: DEMO_RUE_ID, numero: "4", nom_famille: "Martin", passage_1: "absent", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant },
+    { id: "demo-adresse-3", rue_id: DEMO_RUE_ID, numero: "6", nom_famille: "Bernard", passage_1: "passe", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant },
+    { id: "demo-adresse-4", rue_id: DEMO_RUE_ID, numero: "8", nom_famille: "Petit", passage_1: "absent", passage_2: "absent", passage_3: "a_faire", maj_le: maintenant },
+    { id: "demo-adresse-5", rue_id: DEMO_RUE_2_ID, numero: "1", nom_famille: "Roux", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null },
+    { id: "demo-adresse-6", rue_id: DEMO_RUE_2_ID, numero: "3", nom_famille: "Fournier", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null },
+    { id: "demo-adresse-7", rue_id: DEMO_RUE_2_ID, numero: "5", nom_famille: null, passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null },
+    { id: "demo-adresse-8", rue_id: DEMO_RUE_3_ID, numero: "10", nom_famille: "Girard", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null },
+    { id: "demo-adresse-9", rue_id: DEMO_RUE_3_ID, numero: "12", nom_famille: "Blanc", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null },
   ];
 
-  for (const [i, a] of adressesDemo.entries()) {
+  for (const a of adressesDemo) {
     await put("adresses", {
-      id: `demo-adresse-${i + 1}`,
-      rue_id: DEMO_RUE_ID,
+      id: a.id,
+      rue_id: a.rue_id,
       numero: a.numero,
       nom_famille: a.nom_famille,
       latitude: null,
@@ -147,6 +153,7 @@ export async function seedIfEmpty() {
       passage_2: a.passage_2,
       passage_3: a.passage_3,
       notes: "",
+      maj_le: a.maj_le,
     });
   }
 
@@ -160,7 +167,7 @@ export async function seedIfEmpty() {
     mode_paiement: "especes",
     nom_donateur: null,
     email_donateur: null,
-    date: new Date().toISOString(),
+    date: maintenant,
     recu_envoye: false,
   });
 
@@ -237,6 +244,17 @@ export async function updateAdressePassage(id, numeroPassage, nouvelEtat) {
   const adresse = await get("adresses", id);
   if (!adresse) return;
   adresse[`passage_${numeroPassage}`] = nouvelEtat;
+  adresse.maj_le = new Date().toISOString();
+  await put("adresses", adresse);
+  return adresse;
+}
+
+// Marque une adresse comme mise à jour à l'instant (utilisé après
+// l'enregistrement d'un don, qui est aussi une "mise à jour de la maison").
+export async function toucherAdresse(id) {
+  const adresse = await get("adresses", id);
+  if (!adresse) return;
+  adresse.maj_le = new Date().toISOString();
   await put("adresses", adresse);
   return adresse;
 }
@@ -259,6 +277,7 @@ export async function addAdresse(champs) {
     passage_3: "a_faire",
     notes: null,
     nom_famille: null,
+    maj_le: null,
     ...champs,
   };
   await put("adresses", record);

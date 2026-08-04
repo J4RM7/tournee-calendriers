@@ -20,7 +20,6 @@
       <span id="tournee-info" class="tournee-info" hidden></span>
     </div>
     <div class="header-right">
-      <button id="btn-admin" class="secondaire" hidden>Administration</button>
       <span id="agent-badge" class="badge" hidden></span>
       <button id="btn-deconnexion" class="secondaire" hidden>Déconnexion</button>
       <span id="statut-connexion" class="badge">…</span>
@@ -30,11 +29,13 @@
   <section id="ecran-connexion" hidden>
     <div class="connexion-carte">
       <h2>Connexion</h2>
-      <p>Entrez votre email de caserne : vous recevrez un lien de connexion à usage unique, pas de mot de passe à retenir.</p>
+      <p>Entrez votre email et votre mot de passe.</p>
       <form id="form-connexion">
         <label for="connexion-email">Email</label>
         <input type="email" id="connexion-email" required placeholder="prenom.nom@centre-secours.fr" />
-        <button type="submit" class="primary">Recevoir un lien de connexion</button>
+        <label for="connexion-mot-de-passe">Mot de passe</label>
+        <input type="password" id="connexion-mot-de-passe" required />
+        <button type="submit" class="primary">Se connecter</button>
       </form>
       <p id="connexion-message" class="connexion-message"></p>
       <button id="btn-mode-demo" class="secondaire">Continuer en mode démo (sans compte)</button>
@@ -42,7 +43,30 @@
   </section>
 
   <main id="app" hidden>
-    <section id="vue-liste-rues">
+    <section id="vue-accueil">
+      <div class="accueil-totaux">
+        <div class="total-carte">
+          <span class="total-label">Récolté cette année</span>
+          <span id="total-annee-courante" class="total-montant">0,00 €</span>
+        </div>
+        <div class="total-carte total-carte-precedente">
+          <span class="total-label">L'an dernier</span>
+          <span id="total-annee-precedente" class="total-montant">0,00 €</span>
+        </div>
+      </div>
+
+      <div class="paves-accueil">
+        <button type="button" id="pave-accueil-tournee" class="pave-accueil">
+          <span id="pave-accueil-tournee-titre">Tournée</span>
+        </button>
+        <button type="button" id="pave-accueil-carto" class="pave-accueil">Cartographie</button>
+        <button type="button" id="pave-accueil-compta" class="pave-accueil">Compta</button>
+        <button type="button" id="pave-accueil-fin-campagne" class="pave-accueil">Fin de campagne</button>
+      </div>
+    </section>
+
+    <section id="vue-liste-rues" hidden>
+      <button type="button" class="btn-retour" data-retour-accueil>← Accueil</button>
       <div id="communes-container"></div>
       <button type="button" id="btn-ajouter-commune" class="secondaire pave-pleine-largeur">+ Ajouter une commune</button>
     </section>
@@ -63,6 +87,29 @@
 
       <ul id="rue-detail-liste" class="liste-adresses"></ul>
       <button type="button" id="btn-ajouter-adresse" class="secondaire pave-pleine-largeur">+ Ajouter une adresse</button>
+    </section>
+
+    <section id="vue-cartographie" hidden>
+      <button type="button" class="btn-retour" data-retour-accueil>← Accueil</button>
+      <h2>Cartographie</h2>
+      <p class="rue-vide">Fonctionnalité à venir — probablement le plan de la tournée en PDF.</p>
+    </section>
+
+    <section id="vue-compta" hidden>
+      <button type="button" class="btn-retour" data-retour-accueil>← Accueil</button>
+      <h2>Compta</h2>
+      <p class="rue-vide">Fonctionnalité à venir — comptage de l'argent liquide récolté.</p>
+    </section>
+
+    <section id="vue-fin-campagne-agent" hidden>
+      <button type="button" class="btn-retour" data-retour-accueil>← Accueil</button>
+      <h2>Fin de campagne</h2>
+      <p class="admin-bloc-desc">Exportez les données de votre tournée.</p>
+      <div class="form-inline">
+        <button type="button" id="btn-export-pdf-agent" class="secondaire">Exporter en PDF</button>
+        <button type="button" id="btn-export-excel-agent" class="secondaire">Exporter en Excel (CSV)</button>
+      </div>
+      <p id="export-agent-message" class="connexion-message"></p>
     </section>
   </main>
 

@@ -91,6 +91,7 @@ create table adresses (
   passage_2 text not null default 'a_faire' check (passage_2 in ('a_faire', 'passe', 'absent')),
   passage_3 text not null default 'a_faire' check (passage_3 in ('a_faire', 'passe', 'absent')),
   notes text,
+  maj_le timestamptz,
   created_at timestamptz not null default now()
 );
 

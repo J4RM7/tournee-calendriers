@@ -1,6 +1,7 @@
-// Authentification par "lien magique" (email, sans mot de passe) via
-// Supabase Auth. Choisi plutôt qu'un mot de passe classique car plus simple
-// à gérer pour ~100 bénévoles (rien à retenir, rien à réinitialiser).
+// Authentification par email + mot de passe via Supabase Auth. Les comptes
+// (un par agent, plus le compte de l'amicale) sont créés à la main dans le
+// Dashboard Supabase (Authentication > Users > Add user, "Auto Confirm
+// User" coché) puis reliés à une fiche "agents" via agents.user_id.
 import { getSupabaseClient } from "./supabaseClient.js";
 
 // Session en cours, ou null si non connecté / Supabase non configuré.
@@ -11,15 +12,11 @@ export async function getSession() {
   return data.session;
 }
 
-// Envoie un email contenant un lien de connexion à usage unique.
-export async function envoyerLienConnexion(email) {
+export async function connecterAvecMotDePasse(email, motDePasse) {
   const supabase = await getSupabaseClient();
   if (!supabase) throw new Error("Supabase n'est pas configuré.");
 
-  const { error } = await supabase.auth.signInWithOtp({
-    email,
-    options: { emailRedirectTo: window.location.origin },
-  });
+  const { error } = await supabase.auth.signInWithPassword({ email, password: motDePasse });
   if (error) throw error;
 }
 
