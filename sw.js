@@ -1,7 +1,7 @@
 // Service worker minimal : ne s'occupe que de l'"app shell" (les fichiers
 // statiques HTML/CSS/JS/icônes), jamais des données. Les données offline
 // sont gérées séparément par IndexedDB (voir js/db.js).
-const CACHE_NAME = "tc-shell-v11";
+const CACHE_NAME = "tc-shell-v12";
 
 const APP_SHELL = [
   "/",
@@ -14,6 +14,7 @@ const APP_SHELL = [
   "/js/auth.js",
   "/js/sync.js",
   "/js/admin.js",
+  "/js/export.js",
   "/icons/icon-192.png",
   "/icons/icon-512.png",
 ];

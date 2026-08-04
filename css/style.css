@@ -278,6 +278,22 @@ button.secondaire {
   flex-shrink: 0;
 }
 
+.don-ligne {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.pave-annee-precedente {
+  font-size: 0.72rem;
+  color: var(--gris);
+  background: var(--fond);
+  border: 1px solid var(--bordure);
+  border-radius: 6px;
+  padding: 0.3rem 0.5rem;
+  white-space: nowrap;
+}
+
 .passages {
   display: flex;
   gap: 0.3rem;
@@ -534,6 +550,18 @@ dialog::backdrop {
 .admin-bloc h2 {
   margin-top: 0;
   font-size: 1.05rem;
+}
+
+.admin-bloc-desc {
+  font-size: 0.82rem;
+  color: var(--gris);
+  margin-top: -0.4rem;
+}
+
+.bouton-danger {
+  background: var(--rouge);
+  color: white;
+  margin-top: 0.75rem;
 }
 
 .form-inline {

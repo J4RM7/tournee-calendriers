@@ -163,6 +163,22 @@ export async function seedIfEmpty() {
     date: new Date().toISOString(),
     recu_envoye: false,
   });
+
+  // Un don de l'an dernier, pour illustrer le pavé "année précédente".
+  const dateAnPassee = new Date();
+  dateAnPassee.setFullYear(dateAnPassee.getFullYear() - 1);
+  await put("dons", {
+    id: "demo-don-2",
+    adresse_id: "demo-adresse-2",
+    agent_id: DEMO_AGENT_ID,
+    refuse: false,
+    montant: 10,
+    mode_paiement: "cheque",
+    nom_donateur: null,
+    email_donateur: null,
+    date: dateAnPassee.toISOString(),
+    recu_envoye: false,
+  });
 }
 
 export async function getTournee(id) {
@@ -264,4 +280,14 @@ export async function addDon(don) {
 
 export async function getDonsByAdresse(adresseId) {
   return getAllByIndex("dons", "adresse_id", adresseId);
+}
+
+// Les dons ne sont jamais supprimés : chaque don garde sa date, donc
+// l'année à laquelle il appartient se déduit toujours de `date`. Ça permet
+// d'afficher "le don de cette année" (qui redevient vide après une
+// réinitialisation de campagne, sans rien effacer) et "le don de l'année
+// dernière" à partir des mêmes données.
+export function trouverDonPourAnnee(dons, annee) {
+  const donsAnnee = dons.filter((d) => new Date(d.date).getFullYear() === annee);
+  return donsAnnee.find((d) => d.refuse) || donsAnnee.find((d) => d.montant > 0) || null;
 }

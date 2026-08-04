@@ -15,10 +15,12 @@ import {
   addAdresse,
   addDon,
   getDonsByAdresse,
+  trouverDonPourAnnee,
   DEMO_TOURNEE_ID,
   DEMO_AGENT_ID,
 } from "./db.js";
 import { getSupabaseClient } from "./supabaseClient.js";
+import { exporterPDF, exporterExcel, reinitialiserCampagne } from "./export.js";
 import {
   getSession,
   envoyerLienConnexion,
@@ -65,6 +67,10 @@ const adminCommuneInput = document.getElementById("admin-commune");
 const adminRueInput = document.getElementById("admin-rue");
 const adminMessageEl = document.getElementById("admin-message");
 const adminListeTourneesEl = document.getElementById("admin-liste-tournees");
+const btnExportPdf = document.getElementById("btn-export-pdf");
+const btnExportExcel = document.getElementById("btn-export-excel");
+const btnReinitialiser = document.getElementById("btn-reinitialiser");
+const exportMessageEl = document.getElementById("export-message");
 
 const dialogDon = document.getElementById("dialog-don");
 const formDon = document.getElementById("form-don");
@@ -427,7 +433,8 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
     passagesEl.appendChild(btn);
   }
 
-  const donActif = dons.find((d) => d.refuse) || dons.find((d) => d.montant > 0);
+  const anneeCourante = new Date().getFullYear();
+  const donActif = trouverDonPourAnnee(dons, anneeCourante);
   const donBtn = document.createElement("button");
   donBtn.type = "button";
   if (donActif?.refuse) {
@@ -442,9 +449,26 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
   }
   donBtn.addEventListener("click", () => ouvrirDialogDon(adresse));
 
+  const ligneDon = document.createElement("div");
+  ligneDon.className = "don-ligne";
+  ligneDon.appendChild(donBtn);
+
+  // Beaucoup de donateurs redemandent "j'ai donné combien l'an dernier ?" :
+  // ce pavé n'est qu'une info (pas cliquable), absent si pas de don l'an
+  // dernier à cette adresse.
+  const donAnneePrecedente = trouverDonPourAnnee(dons, anneeCourante - 1);
+  if (donAnneePrecedente) {
+    const anneePrecEl = document.createElement("span");
+    anneePrecEl.className = "pave-annee-precedente";
+    anneePrecEl.textContent = donAnneePrecedente.refuse
+      ? `${anneeCourante - 1} : refusé`
+      : `${anneeCourante - 1} : ${formaterMontant(donAnneePrecedente.montant)}`;
+    ligneDon.appendChild(anneePrecEl);
+  }
+
   const droite = document.createElement("div");
   droite.className = "adresse-droite";
-  droite.append(passagesEl, donBtn);
+  droite.append(passagesEl, ligneDon);
 
   li.append(info, droite);
   return li;
@@ -816,6 +840,55 @@ formNouvelleTournee.addEventListener("submit", async (event) => {
   } catch (err) {
     adminMessageEl.textContent = "Erreur : " + err.message;
     adminMessageEl.className = "connexion-message erreur";
+  }
+});
+
+// --- Fin de campagne : export + réinitialisation ------------------------
+function afficherMessageExport(texte, type) {
+  exportMessageEl.textContent = texte;
+  exportMessageEl.className = "connexion-message" + (type ? " " + type : "");
+}
+
+btnExportPdf.addEventListener("click", async () => {
+  const supabase = await getSupabaseClient();
+  if (!supabase) return;
+
+  afficherMessageExport("Génération du PDF…");
+  try {
+    await exporterPDF(supabase);
+    afficherMessageExport("PDF téléchargé.", "succes");
+  } catch (err) {
+    afficherMessageExport("Erreur : " + err.message, "erreur");
+  }
+});
+
+btnExportExcel.addEventListener("click", async () => {
+  const supabase = await getSupabaseClient();
+  if (!supabase) return;
+
+  afficherMessageExport("Génération du fichier Excel…");
+  try {
+    await exporterExcel(supabase);
+    afficherMessageExport("Fichier Excel téléchargé.", "succes");
+  } catch (err) {
+    afficherMessageExport("Erreur : " + err.message, "erreur");
+  }
+});
+
+btnReinitialiser.addEventListener("click", async () => {
+  const confirme = window.confirm(
+    "Avez-vous bien exporté les données ?\n\nCette action remet à zéro les cases de passage (1, 2, 3) de TOUTES les adresses, pour toutes les tournées. Les communes, rues, adresses et dons ne sont pas supprimés. Continuer ?"
+  );
+  if (!confirme) return;
+
+  const supabase = await getSupabaseClient();
+  if (!supabase) return;
+
+  try {
+    await reinitialiserCampagne(supabase);
+    afficherMessageExport("Campagne réinitialisée pour la nouvelle année.", "succes");
+  } catch (err) {
+    afficherMessageExport("Erreur : " + err.message, "erreur");
   }
 });
 
