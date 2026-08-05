@@ -245,15 +245,33 @@ main,
   justify-content: space-between;
   gap: 0.5rem;
   padding: 0.7rem 0.9rem;
-  border: 1px solid #d8e6f5;
+  border: 1px solid var(--bordure);
   border-radius: 8px;
-  background: #eef5fc;
+  background: #f1f2f4;
   cursor: pointer;
   transition: background 0.15s ease;
 }
 
 .rue-carte:hover {
-  background: #dfedfa;
+  background: #e6e7ea;
+}
+
+.rue-carte.statut-en-cours {
+  background: #fff4e0;
+  border-color: #f5dfa8;
+}
+
+.rue-carte.statut-en-cours:hover {
+  background: #ffedcc;
+}
+
+.rue-carte.statut-valide {
+  background: #e7f6ec;
+  border-color: #bfe3c9;
+}
+
+.rue-carte.statut-valide:hover {
+  background: #d9f0e1;
 }
 
 .rue-carte-nom {
@@ -330,6 +348,17 @@ main,
   justify-content: space-between;
   gap: 0.6rem;
   flex-wrap: wrap;
+  transition: background 0.15s ease;
+}
+
+.adresse-item.statut-validee {
+  background: #e7f6ec;
+  border-color: #bfe3c9;
+}
+
+.adresse-item.statut-attente {
+  background: #fff4e0;
+  border-color: #f5dfa8;
 }
 
 .adresse-info {
@@ -347,12 +376,13 @@ main,
 
 .adresse-nom {
   font-weight: 700;
+  color: var(--rouge);
 }
 
 .adresse-info .adresse-notes {
   font-size: 0.8rem;
   font-style: italic;
-  color: var(--gris);
+  color: #7c4dab;
 }
 
 .btn-modifier {

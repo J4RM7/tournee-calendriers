@@ -3,8 +3,10 @@
 // écrans nécessitent d'être en ligne — pas de cache hors-ligne ici, ce
 // n'est pas ce dont un admin a besoin sur le terrain.
 
-function estAdresseTraitee(adresse) {
-  return [adresse.passage_1, adresse.passage_2, adresse.passage_3].some((p) => p !== "a_faire");
+import { statutValidationAdresse } from "./db.js";
+
+function estAdresseValidee(adresse) {
+  return statutValidationAdresse(adresse) === "validee";
 }
 
 export async function listerTournees(supabase) {
@@ -19,7 +21,7 @@ export async function listerTournees(supabase) {
 
   return data.map((t) => {
     const adresses = (t.communes || []).flatMap((c) => (c.rues || []).flatMap((r) => r.adresses || []));
-    const traitees = adresses.filter(estAdresseTraitee).length;
+    const traitees = adresses.filter(estAdresseValidee).length;
     return {
       id: t.id,
       numero: t.numero,

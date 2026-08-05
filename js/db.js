@@ -301,6 +301,21 @@ export async function getDonsByAdresse(adresseId) {
   return getAllByIndex("dons", "adresse_id", adresseId);
 }
 
+// État d'une maison au vu de ses 3 passages :
+// - "validee" : au moins un passage réussi, OU les 3 passages sont des
+//   absences (on a fait le tour, personne n'a jamais répondu).
+// - "attente" : 1 ou 2 absences enregistrées, mais pas encore de passage
+//   réussi ni les 3 passages épuisés.
+// - "neutre" : aucun passage encore tenté.
+export function statutValidationAdresse(adresse) {
+  const passages = [adresse.passage_1, adresse.passage_2, adresse.passage_3];
+  const nbPasse = passages.filter((p) => p === "passe").length;
+  const nbAbsent = passages.filter((p) => p === "absent").length;
+  if (nbPasse >= 1 || nbAbsent === 3) return "validee";
+  if (nbAbsent >= 1) return "attente";
+  return "neutre";
+}
+
 // Les dons ne sont jamais supprimés : chaque don garde sa date, donc
 // l'année à laquelle il appartient se déduit toujours de `date`. Ça permet
 // d'afficher "le don de cette année" (qui redevient vide après une

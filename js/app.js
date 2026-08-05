@@ -17,6 +17,7 @@ import {
   toucherAdresse,
   getDonsByAdresse,
   trouverDonPourAnnee,
+  statutValidationAdresse,
   DEMO_TOURNEE_ID,
   DEMO_AGENT_ID,
 } from "./db.js";
@@ -301,8 +302,22 @@ btnDeconnexion.addEventListener("click", handleDeconnexion);
 btnDeconnexionAccueil.addEventListener("click", handleDeconnexion);
 
 // --- Écran "liste des rues" (regroupées par commune) -----------------
-function estAdresseTraitee(adresse) {
-  return [adresse.passage_1, adresse.passage_2, adresse.passage_3].some((p) => p !== "a_faire");
+// Seules les maisons validées comptent dans les courbes de progression
+// (voir statutValidationAdresse dans db.js pour la définition de "validée").
+function estAdresseValidee(adresse) {
+  return statutValidationAdresse(adresse) === "validee";
+}
+
+// Statut d'une rue entière, pour la couleur du pavé sur l'écran "toutes les
+// rues" : vierge (rien tenté), en cours (au moins un passage, pas encore
+// tout validé), validée (toutes les maisons validées).
+function statutRue(adresses) {
+  if (adresses.length === 0) return "vierge";
+  if (adresses.every(estAdresseValidee)) return "valide";
+  const auMoinsUnPassage = adresses.some((a) =>
+    [a.passage_1, a.passage_2, a.passage_3].some((p) => p !== "a_faire")
+  );
+  return auMoinsUnPassage ? "en-cours" : "vierge";
 }
 
 function formaterMontant(montant) {
@@ -365,7 +380,7 @@ async function calculerProgressionTournee(tourneeId) {
     for (const rue of rues) {
       const adresses = await getAdressesByRue(rue.id);
       total += adresses.length;
-      traitees += adresses.filter(estAdresseTraitee).length;
+      traitees += adresses.filter(estAdresseValidee).length;
     }
   }
 
@@ -510,10 +525,10 @@ async function creerBlocCommune(commune) {
   for (const rue of rues) {
     const adresses = await getAdressesByRue(rue.id);
     const total = adresses.length;
-    const traitees = adresses.filter(estAdresseTraitee).length;
+    const traitees = adresses.filter(estAdresseValidee).length;
 
     const li = document.createElement("li");
-    li.className = "rue-carte";
+    li.className = `rue-carte statut-${statutRue(adresses)}`;
     li.innerHTML = `
       <span class="rue-carte-nom">${rue.nom}</span>
       <span class="rue-carte-stats">${formaterCompteur(traitees, total)}</span>
@@ -552,7 +567,7 @@ async function rendreRueDetail() {
   adresses.sort((a, b) => Number(a.numero) - Number(b.numero));
 
   const total = adresses.length;
-  const traitees = adresses.filter(estAdresseTraitee).length;
+  const traitees = adresses.filter(estAdresseValidee).length;
   rueDetailCompteurEl.textContent = formaterCompteur(traitees, total);
   rueDetailProgressEl.style.width = total ? `${Math.round((traitees / total) * 100)}%` : "0%";
 
@@ -565,7 +580,7 @@ async function rendreRueDetail() {
 
 function creerLigneAdresse(adresse, dons, rue, commune) {
   const li = document.createElement("li");
-  li.className = "adresse-item";
+  li.className = `adresse-item statut-${statutValidationAdresse(adresse)}`;
 
   const info = document.createElement("div");
   info.className = "adresse-info";
@@ -810,7 +825,12 @@ function reinitialiserMontant() {
 
 pavesMontantEl.querySelectorAll(".pave[data-montant]").forEach((btn) => {
   btn.addEventListener("click", () => {
-    montantSelectionne = Number(btn.dataset.montant);
+    const valeur = Number(btn.dataset.montant);
+    if (montantSelectionne === valeur) {
+      reinitialiserMontant();
+      return;
+    }
+    montantSelectionne = valeur;
     donMontantAutreInput.hidden = true;
     pavesMontantEl.querySelectorAll(".pave").forEach((b) => b.classList.remove("actif"));
     btn.classList.add("actif");
@@ -818,6 +838,10 @@ pavesMontantEl.querySelectorAll(".pave[data-montant]").forEach((btn) => {
 });
 
 paveMontantAutreBtn.addEventListener("click", () => {
+  if (paveMontantAutreBtn.classList.contains("actif")) {
+    reinitialiserMontant();
+    return;
+  }
   montantSelectionne = null;
   donMontantAutreInput.hidden = false;
   donMontantAutreInput.focus();
@@ -838,8 +862,20 @@ function selectionnerModePaiement(mode) {
   paveChequeBtn.classList.toggle("actif", mode === "cheque");
 }
 
-paveEspecesBtn.addEventListener("click", () => selectionnerModePaiement("especes"));
-paveChequeBtn.addEventListener("click", () => selectionnerModePaiement("cheque"));
+paveEspecesBtn.addEventListener("click", () => {
+  if (modePaiementSelectionne === "especes") {
+    reinitialiserModePaiement();
+    return;
+  }
+  selectionnerModePaiement("especes");
+});
+paveChequeBtn.addEventListener("click", () => {
+  if (modePaiementSelectionne === "cheque") {
+    reinitialiserModePaiement();
+    return;
+  }
+  selectionnerModePaiement("cheque");
+});
 
 // Pavé "Envoyer le reçu" : pour l'instant, marque juste le don comme
 // "reçu envoyé" (colonne dons.recu_envoye), sans envoyer de vrai email.
