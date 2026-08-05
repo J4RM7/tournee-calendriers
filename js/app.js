@@ -69,6 +69,7 @@ const statutConnexionEl = document.getElementById("statut-connexion");
 const appEl = document.getElementById("app");
 const agentBadgeEl = document.getElementById("agent-badge");
 const btnDeconnexion = document.getElementById("btn-deconnexion");
+const btnDeconnexionAccueil = document.getElementById("btn-deconnexion-accueil");
 const tourneeInfoEl = document.getElementById("tournee-info");
 
 const ecranConnexionEl = document.getElementById("ecran-connexion");
@@ -183,6 +184,7 @@ function afficherEcranConnexion() {
   ecranAdminEl.hidden = true;
   agentBadgeEl.hidden = true;
   btnDeconnexion.hidden = true;
+  btnDeconnexionAccueil.hidden = true;
   tourneeInfoEl.hidden = true;
 }
 
@@ -199,10 +201,12 @@ function afficherApp() {
     agentBadgeEl.textContent = "Mode démo";
     agentBadgeEl.hidden = false;
     btnDeconnexion.hidden = true;
+    btnDeconnexionAccueil.hidden = true;
   } else {
     agentBadgeEl.textContent = `${agentActuel.prenom} ${agentActuel.nom}`;
     agentBadgeEl.hidden = false;
     btnDeconnexion.hidden = false;
+    btnDeconnexionAccueil.hidden = false;
   }
 
   afficherAccueil();
@@ -283,13 +287,16 @@ formConnexion.addEventListener("submit", async (event) => {
 
 btnModeDemo.addEventListener("click", activerModeDemo);
 
-btnDeconnexion.addEventListener("click", async () => {
+async function handleDeconnexion() {
   await deconnecter();
   agentActuel = null;
   tourneeActuelleId = null;
   modeDemo = false;
   afficherEcranConnexion();
-});
+}
+
+btnDeconnexion.addEventListener("click", handleDeconnexion);
+btnDeconnexionAccueil.addEventListener("click", handleDeconnexion);
 
 // --- Écran "liste des rues" (regroupées par commune) -----------------
 function estAdresseTraitee(adresse) {

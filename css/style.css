@@ -68,10 +68,11 @@ body {
 }
 
 .logo-amicale {
-  height: 2.4rem;
+  height: 4.5rem;
   width: auto;
-  border-radius: 4px;
+  border-radius: 6px;
   flex-shrink: 0;
+  margin-left: auto;
 }
 
 .badge {
