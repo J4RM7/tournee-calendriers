@@ -36,6 +36,8 @@ const PROCHAIN_ETAT_PASSAGE = { a_faire: "passe", passe: "absent", absent: "a_fa
 const LABEL_PASSAGE = { a_faire: "à faire", passe: "passé", absent: "absent" };
 
 const vueAccueilEl = document.getElementById("vue-accueil");
+const accueilProgressionCompteurEl = document.getElementById("accueil-progression-compteur");
+const accueilProgressionFillEl = document.getElementById("accueil-progression-fill");
 const totalAnneeCouranteEl = document.getElementById("total-annee-courante");
 const totalAnneePrecedenteEl = document.getElementById("total-annee-precedente");
 const paveAccueilTourneeBtn = document.getElementById("pave-accueil-tournee");
@@ -353,6 +355,23 @@ async function calculerTotauxTournee(tourneeId) {
   return { totalCourant, totalPrecedent };
 }
 
+async function calculerProgressionTournee(tourneeId) {
+  let total = 0;
+  let traitees = 0;
+
+  const communes = await getCommunesByTournee(tourneeId);
+  for (const commune of communes) {
+    const rues = await getRuesByCommune(commune.id);
+    for (const rue of rues) {
+      const adresses = await getAdressesByRue(rue.id);
+      total += adresses.length;
+      traitees += adresses.filter(estAdresseTraitee).length;
+    }
+  }
+
+  return { total, traitees };
+}
+
 // --- Page d'accueil (4 pavés) --------------------------------------------
 async function afficherAccueil() {
   vueAppInterne = "accueil";
@@ -371,6 +390,14 @@ async function afficherAccueil() {
     tourneeInfoEl.hidden = true;
     paveAccueilTourneeTitreEl.textContent = "Tournée";
   }
+
+  const progression = tourneeActuelleId
+    ? await calculerProgressionTournee(tourneeActuelleId)
+    : { total: 0, traitees: 0 };
+  accueilProgressionCompteurEl.textContent = formaterCompteur(progression.traitees, progression.total);
+  accueilProgressionFillEl.style.width = progression.total
+    ? `${Math.round((progression.traitees / progression.total) * 100)}%`
+    : "0%";
 
   const totaux = tourneeActuelleId
     ? await calculerTotauxTournee(tourneeActuelleId)
