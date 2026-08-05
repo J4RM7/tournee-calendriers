@@ -186,7 +186,26 @@
     <section id="vue-compta" hidden>
       <button type="button" class="btn-retour" data-retour-accueil>← Accueil</button>
       <h2>Compta</h2>
-      <p class="rue-vide">Fonctionnalité à venir — comptage de l'argent liquide récolté.</p>
+
+      <div class="stats-grille">
+        <div class="stat-carte stat-carte-vert">
+          <span class="stat-icone">💵</span>
+          <div class="stat-corps">
+            <span class="stat-label">Espèces reçues</span>
+            <span id="compta-nb-especes" class="stat-valeur">0</span>
+            <span id="compta-total-especes" class="stat-sous-texte"></span>
+          </div>
+        </div>
+
+        <div class="stat-carte stat-carte-bleu">
+          <span class="stat-icone">🧾</span>
+          <div class="stat-corps">
+            <span class="stat-label">Chèques reçus</span>
+            <span id="compta-nb-cheques" class="stat-valeur">0</span>
+            <span id="compta-total-cheques" class="stat-sous-texte"></span>
+          </div>
+        </div>
+      </div>
     </section>
 
     <section id="vue-fin-campagne-agent" hidden>

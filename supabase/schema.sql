@@ -64,7 +64,8 @@ create table communes (
   id uuid primary key default gen_random_uuid(),
   tournee_id uuid not null references tournees (id) on delete cascade,
   nom text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  ordre integer not null default 0
 );
 
 create index communes_tournee_id_idx on communes (tournee_id);
@@ -74,7 +75,8 @@ create table rues (
   id uuid primary key default gen_random_uuid(),
   commune_id uuid not null references communes (id) on delete cascade,
   nom text not null,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  ordre integer not null default 0
 );
 
 create index rues_commune_id_idx on rues (commune_id);

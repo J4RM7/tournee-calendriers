@@ -13,7 +13,7 @@ import {
   updateAdressePassage,
   updateAdresseInfos,
   addAdresse,
-  addDon,
+  enregistrerDon,
   toucherAdresse,
   getDonsByAdresse,
   trouverDonPourAnnee,
@@ -49,6 +49,10 @@ const boutonsRetourAccueil = document.querySelectorAll("[data-retour-accueil]");
 
 const vueCartographieEl = document.getElementById("vue-cartographie");
 const vueComptaEl = document.getElementById("vue-compta");
+const comptaNbEspecesEl = document.getElementById("compta-nb-especes");
+const comptaTotalEspecesEl = document.getElementById("compta-total-especes");
+const comptaNbChequesEl = document.getElementById("compta-nb-cheques");
+const comptaTotalChequesEl = document.getElementById("compta-total-cheques");
 const vueFinCampagneAgentEl = document.getElementById("vue-fin-campagne-agent");
 const btnExportPdfAgent = document.getElementById("btn-export-pdf-agent");
 const btnExportExcelAgent = document.getElementById("btn-export-excel-agent");
@@ -461,11 +465,7 @@ paveAccueilCartoBtn.addEventListener("click", () => {
   masquerToutesLesVuesApp();
   vueCartographieEl.hidden = false;
 });
-paveAccueilComptaBtn.addEventListener("click", () => {
-  vueAppInterne = "compta";
-  masquerToutesLesVuesApp();
-  vueComptaEl.hidden = false;
-});
+paveAccueilComptaBtn.addEventListener("click", () => afficherCompta());
 paveAccueilFinCampagneBtn.addEventListener("click", () => {
   vueAppInterne = "fin-campagne";
   masquerToutesLesVuesApp();
@@ -514,6 +514,48 @@ async function afficherStatistiques() {
 
   statNbDonateursEl.textContent = String(stats.nbDonateurs);
   statNbRefusEl.textContent = String(stats.nbRefus);
+}
+
+// --- Écran Compta (comptage espèces / chèques) ----------------------------
+async function calculerComptaTournee(tourneeId) {
+  const anneeCourante = new Date().getFullYear();
+  const items = tourneeId ? await obtenirAdressesTournee(tourneeId) : [];
+
+  let nbEspeces = 0;
+  let totalEspeces = 0;
+  let nbCheques = 0;
+  let totalCheques = 0;
+
+  for (const { adresse } of items) {
+    const dons = await getDonsByAdresse(adresse.id);
+    const don = trouverDonPourAnnee(dons, anneeCourante);
+    if (!don || don.refuse) continue;
+
+    if (don.mode_paiement === "especes") {
+      nbEspeces++;
+      totalEspeces += don.montant;
+    } else if (don.mode_paiement === "cheque") {
+      nbCheques++;
+      totalCheques += don.montant;
+    }
+  }
+
+  return { nbEspeces, totalEspeces, nbCheques, totalCheques };
+}
+
+async function afficherCompta() {
+  vueAppInterne = "compta";
+  masquerToutesLesVuesApp();
+  vueComptaEl.hidden = false;
+
+  const compta = tourneeActuelleId
+    ? await calculerComptaTournee(tourneeActuelleId)
+    : { nbEspeces: 0, totalEspeces: 0, nbCheques: 0, totalCheques: 0 };
+
+  comptaNbEspecesEl.textContent = String(compta.nbEspeces);
+  comptaTotalEspecesEl.textContent = formaterMontant(compta.totalEspeces);
+  comptaNbChequesEl.textContent = String(compta.nbCheques);
+  comptaTotalChequesEl.textContent = formaterMontant(compta.totalCheques);
 }
 
 // --- Écran Recherche -------------------------------------------------------
@@ -662,7 +704,7 @@ async function rendreOngletToutes() {
   btnAjouterCommune.hidden = false;
 
   const communes = await getCommunesByTournee(tourneeActuelleId);
-  communes.sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+  communes.sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
 
   if (communes.length === 0) {
     communesContainerEl.innerHTML = `<p class="rue-vide">Aucune commune pour l'instant — ajoutez-en une pour commencer.</p>`;
@@ -675,8 +717,9 @@ async function rendreOngletToutes() {
 }
 
 // Listing plat (toutes rues confondues) pour les onglets "Repasses" et
-// "A faire" : trié par commune puis rue, et à l'intérieur d'une même rue,
-// par ordre de saisie/rang manuel — comme dans le détail d'une rue.
+// "A faire" : trié par commune puis rue (ordre de saisie), et à l'intérieur
+// d'une même rue, par ordre de saisie/rang manuel — comme dans le détail
+// d'une rue.
 async function rendreOngletFiltre(container, predicate) {
   container.innerHTML = "";
   ongletVideEl.hidden = true;
@@ -685,9 +728,9 @@ async function rendreOngletFiltre(container, predicate) {
   const items = await obtenirAdressesTournee(tourneeActuelleId);
   const filtres = items.filter(({ adresse }) => predicate(adresse));
   filtres.sort((a, b) => {
-    const communeCmp = a.commune.nom.localeCompare(b.commune.nom, "fr");
+    const communeCmp = (a.commune.ordre ?? 0) - (b.commune.ordre ?? 0);
     if (communeCmp !== 0) return communeCmp;
-    const rueCmp = a.rue.nom.localeCompare(b.rue.nom, "fr");
+    const rueCmp = (a.rue.ordre ?? 0) - (b.rue.ordre ?? 0);
     if (rueCmp !== 0) return rueCmp;
     return (a.adresse.ordre ?? 0) - (b.adresse.ordre ?? 0);
   });
@@ -714,7 +757,7 @@ async function creerBlocCommune(commune) {
   titre.querySelector(".btn-modifier").addEventListener("click", () => ouvrirDialogRenommerCommune(commune));
 
   const rues = await getRuesByCommune(commune.id);
-  rues.sort((a, b) => a.nom.localeCompare(b.nom, "fr"));
+  rues.sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
 
   const liste = document.createElement("ul");
   liste.className = "rues-liste";
@@ -850,7 +893,7 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
     donBtn.className = "don-cell";
     donBtn.textContent = "Don";
   }
-  donBtn.addEventListener("click", () => ouvrirDialogDon(adresse));
+  donBtn.addEventListener("click", () => ouvrirDialogDon(adresse, dons));
 
   const ligneDon = document.createElement("div");
   ligneDon.className = "don-ligne";
@@ -1109,6 +1152,24 @@ function reinitialiserMontant() {
   pavesMontantEl.querySelectorAll(".pave").forEach((btn) => btn.classList.remove("actif"));
 }
 
+function selectionnerMontant(valeur) {
+  montantSelectionne = valeur;
+  donMontantAutreInput.hidden = true;
+  pavesMontantEl.querySelectorAll(".pave").forEach((b) => b.classList.remove("actif"));
+  const btn = pavesMontantEl.querySelector(`[data-montant="${valeur}"]`);
+  btn?.classList.add("actif");
+}
+
+// Un montant qui ne correspond à aucun pavé prédéfini (ex. relu depuis un
+// don déjà enregistré) : on affiche le champ libre pré-rempli.
+function selectionnerMontantLibre(valeur) {
+  montantSelectionne = null;
+  donMontantAutreInput.hidden = false;
+  donMontantAutreInput.value = valeur;
+  pavesMontantEl.querySelectorAll(".pave").forEach((b) => b.classList.remove("actif"));
+  paveMontantAutreBtn.classList.add("actif");
+}
+
 pavesMontantEl.querySelectorAll(".pave[data-montant]").forEach((btn) => {
   btn.addEventListener("click", () => {
     const valeur = Number(btn.dataset.montant);
@@ -1116,10 +1177,7 @@ pavesMontantEl.querySelectorAll(".pave[data-montant]").forEach((btn) => {
       reinitialiserMontant();
       return;
     }
-    montantSelectionne = valeur;
-    donMontantAutreInput.hidden = true;
-    pavesMontantEl.querySelectorAll(".pave").forEach((b) => b.classList.remove("actif"));
-    btn.classList.add("actif");
+    selectionnerMontant(valeur);
   });
 });
 
@@ -1130,6 +1188,7 @@ paveMontantAutreBtn.addEventListener("click", () => {
   }
   montantSelectionne = null;
   donMontantAutreInput.hidden = false;
+  donMontantAutreInput.value = "";
   donMontantAutreInput.focus();
   pavesMontantEl.querySelectorAll(".pave").forEach((b) => b.classList.remove("actif"));
   paveMontantAutreBtn.classList.add("actif");
@@ -1167,27 +1226,58 @@ paveChequeBtn.addEventListener("click", () => {
 // "reçu envoyé" (colonne dons.recu_envoye), sans envoyer de vrai email.
 // L'envoi automatique (PDF Cerfa 11580 + Resend depuis l'adresse de
 // l'amicale) arrivera une fois ces deux éléments prêts côté association.
-function reinitialiserRecu() {
-  recuEnvoyeSelectionne = false;
-  paveRecuBtn.classList.remove("actif");
-}
-
 paveRecuBtn.addEventListener("click", () => {
   recuEnvoyeSelectionne = !recuEnvoyeSelectionne;
   paveRecuBtn.classList.toggle("actif", recuEnvoyeSelectionne);
 });
 
-function ouvrirDialogDon(adresse) {
+const MONTANTS_PREDEFINIS = [2, 5, 10, 15, 20];
+
+// L'adresse email d'un donateur ne change pas d'une année sur l'autre : on
+// reprend la plus récente connue (tous dons confondus) pour ne pas avoir à
+// la retaper chaque année, même si aucun don n'est encore enregistré pour
+// l'année en cours.
+function dernierEmailConnu(dons) {
+  const avecEmail = [...dons]
+    .filter((d) => d.email_donateur)
+    .sort((a, b) => new Date(b.date) - new Date(a.date));
+  return avecEmail[0]?.email_donateur || null;
+}
+
+function ouvrirDialogDon(adresse, dons = []) {
   adresseCourante = adresse;
   donAdresseLabel.textContent = `Don - n°${adresse.numero}`;
   formDon.reset();
+
+  // Si un don existe déjà pour cette année (on rouvre le pavé pour le
+  // vérifier ou le corriger), on réaffiche exactement ce qui a été
+  // enregistré plutôt que de tout remettre à zéro.
+  const donExistant = trouverDonPourAnnee(dons, new Date().getFullYear());
+
+  definirChoixDon(donExistant?.refuse ?? false);
+
+  if (donExistant && !donExistant.refuse) {
+    if (MONTANTS_PREDEFINIS.includes(donExistant.montant)) {
+      selectionnerMontant(donExistant.montant);
+    } else if (donExistant.montant > 0) {
+      selectionnerMontantLibre(donExistant.montant);
+    } else {
+      reinitialiserMontant();
+    }
+    selectionnerModePaiement(donExistant.mode_paiement);
+  } else {
+    reinitialiserMontant();
+    reinitialiserModePaiement();
+  }
+
   // Le donateur est par défaut la famille de l'adresse ; reste modifiable
   // (ex. si c'est un voisin ou un proche qui ouvre la porte).
-  document.getElementById("don-nom").value = adresse.nom_famille || "";
-  definirChoixDon(false);
-  reinitialiserMontant();
-  reinitialiserModePaiement();
-  reinitialiserRecu();
+  document.getElementById("don-nom").value = donExistant?.nom_donateur || adresse.nom_famille || "";
+  document.getElementById("don-email").value = donExistant?.email_donateur || dernierEmailConnu(dons) || "";
+
+  recuEnvoyeSelectionne = donExistant?.recu_envoye ?? false;
+  paveRecuBtn.classList.toggle("actif", recuEnvoyeSelectionne);
+
   dialogDon.showModal();
 }
 
@@ -1202,7 +1292,7 @@ formDon.addEventListener("submit", async () => {
       ? montantSelectionne
       : parseFloat(donMontantAutreInput.value || "0");
 
-  const don = await addDon({
+  const don = await enregistrerDon({
     adresse_id: adresseCourante.id,
     agent_id: agentActuel.id,
     refuse: refuseSelectionne,

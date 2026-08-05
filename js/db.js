@@ -7,7 +7,7 @@
 // Hiérarchie : tournée -> communes -> rues -> adresses -> dons.
 
 const DB_NAME = "tournee-calendriers";
-const DB_VERSION = 5;
+const DB_VERSION = 6;
 
 // Identifiants "démo" utilisés tant qu'on n'est pas connecté à un vrai
 // compte (mode démo hors-ligne, sans backend).
@@ -48,6 +48,14 @@ function openDB() {
       // v5 ajoute adresses.ordre (rang modifiable manuellement, façon
       // playlist). Même logique qu'en v4 : cache local repartant à vide.
       if (event.oldVersion < 5) {
+        for (const nom of ["tournees", "communes", "rues", "adresses", "dons"]) {
+          if (db.objectStoreNames.contains(nom)) db.deleteObjectStore(nom);
+        }
+      }
+      // v6 ajoute communes.ordre et rues.ordre (tri par ordre de saisie,
+      // comme les adresses). Même logique de remise à zéro qu'aux versions
+      // précédentes.
+      if (event.oldVersion < 6) {
         for (const nom of ["tournees", "communes", "rues", "adresses", "dons"]) {
           if (db.objectStoreNames.contains(nom)) db.deleteObjectStore(nom);
         }
@@ -137,11 +145,12 @@ export async function seedIfEmpty() {
     id: DEMO_COMMUNE_ID,
     tournee_id: DEMO_TOURNEE_ID,
     nom: "Veyras",
+    ordre: 0,
   });
 
-  await put("rues", { id: DEMO_RUE_ID, commune_id: DEMO_COMMUNE_ID, nom: "Montée de la Planète" });
-  await put("rues", { id: DEMO_RUE_2_ID, commune_id: DEMO_COMMUNE_ID, nom: "Avenue du Ruissol" });
-  await put("rues", { id: DEMO_RUE_3_ID, commune_id: DEMO_COMMUNE_ID, nom: "Chemin de Many" });
+  await put("rues", { id: DEMO_RUE_ID, commune_id: DEMO_COMMUNE_ID, nom: "Montée de la Planète", ordre: 0 });
+  await put("rues", { id: DEMO_RUE_2_ID, commune_id: DEMO_COMMUNE_ID, nom: "Avenue du Ruissol", ordre: 1 });
+  await put("rues", { id: DEMO_RUE_3_ID, commune_id: DEMO_COMMUNE_ID, nom: "Chemin de Many", ordre: 2 });
 
   const maintenant = new Date().toISOString();
   // Décalages en minutes avant l'instant présent : détermine l'ordre de
@@ -225,9 +234,16 @@ export async function getCommune(id) {
 }
 
 export async function addCommune(champs) {
-  const record = { id: crypto.randomUUID(), ...champs };
+  const ordre = champs.tournee_id ? await prochainOrdreCommune(champs.tournee_id) : 0;
+  const record = { id: crypto.randomUUID(), ordre, ...champs };
   await put("communes", record);
   return record;
+}
+
+async function prochainOrdreCommune(tourneeId) {
+  const communes = await getCommunesByTournee(tourneeId);
+  if (communes.length === 0) return 0;
+  return Math.max(...communes.map((c) => c.ordre ?? 0)) + 1;
 }
 
 export async function updateCommuneNom(id, nom) {
@@ -247,9 +263,16 @@ export async function getRue(id) {
 }
 
 export async function addRue(champs) {
-  const record = { id: crypto.randomUUID(), ...champs };
+  const ordre = champs.commune_id ? await prochainOrdreRue(champs.commune_id) : 0;
+  const record = { id: crypto.randomUUID(), ordre, ...champs };
   await put("rues", record);
   return record;
+}
+
+async function prochainOrdreRue(communeId) {
+  const rues = await getRuesByCommune(communeId);
+  if (rues.length === 0) return 0;
+  return Math.max(...rues.map((r) => r.ordre ?? 0)) + 1;
 }
 
 export async function updateRueNom(id, nom) {
@@ -343,6 +366,20 @@ export async function addDon(don) {
   };
   await put("dons", record);
   return record;
+}
+
+// Crée le don de l'année en cours pour cette adresse, ou met à jour celui
+// qui existe déjà (on rouvre le pavé "don" pour le corriger) plutôt que
+// d'en empiler un nouveau à chaque enregistrement.
+export async function enregistrerDon(champs) {
+  const dons = await getDonsByAdresse(champs.adresse_id);
+  const existant = trouverDonPourAnnee(dons, new Date().getFullYear());
+  if (existant) {
+    const maj = { ...existant, ...champs, id: existant.id, date: existant.date };
+    await put("dons", maj);
+    return maj;
+  }
+  return addDon(champs);
 }
 
 export async function getDonsByAdresse(adresseId) {
