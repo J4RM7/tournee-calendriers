@@ -67,6 +67,13 @@ body {
   font-size: 0.8rem;
 }
 
+.logo-amicale {
+  height: 2.4rem;
+  width: auto;
+  border-radius: 4px;
+  flex-shrink: 0;
+}
+
 .badge {
   font-size: 0.75rem;
   padding: 0.25rem 0.6rem;
