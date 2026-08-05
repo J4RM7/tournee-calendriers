@@ -119,6 +119,11 @@ export async function get(storeName, id) {
   return requestToPromise(store.get(id));
 }
 
+export async function remove(storeName, id) {
+  const store = await tx(storeName, "readwrite");
+  return requestToPromise(store.delete(id));
+}
+
 // Jeu de données de démonstration, inséré une seule fois si la base est
 // vide, pour que l'écran affiche tout de suite quelque chose de concret
 // sans backend connecté. Reprend le scénario réel : tournée n°18, commune
@@ -384,6 +389,16 @@ export async function enregistrerDon(champs) {
 
 export async function getDonsByAdresse(adresseId) {
   return getAllByIndex("dons", "adresse_id", adresseId);
+}
+
+// Supprime une adresse et tous ses dons (Supabase fait la même chose via
+// "on delete cascade" ; on reproduit le même comportement côté cache local).
+export async function deleteAdresse(id) {
+  const dons = await getDonsByAdresse(id);
+  for (const don of dons) {
+    await remove("dons", don.id);
+  }
+  await remove("adresses", id);
 }
 
 // État d'une maison au vu de ses 3 passages :

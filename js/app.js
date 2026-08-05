@@ -12,6 +12,7 @@ import {
   getAdressesByRue,
   updateAdressePassage,
   updateAdresseInfos,
+  deleteAdresse,
   addAdresse,
   enregistrerDon,
   toucherAdresse,
@@ -121,6 +122,7 @@ const exportMessageEl = document.getElementById("export-message");
 const dialogDon = document.getElementById("dialog-don");
 const formDon = document.getElementById("form-don");
 const donAdresseLabel = document.getElementById("don-adresse-label");
+const donMessageEl = document.getElementById("don-message");
 const donAnnulerBtn = document.getElementById("don-annuler");
 const donChoixDonneBtn = document.getElementById("don-choix-donne");
 const donChoixRefuseBtn = document.getElementById("don-choix-refuse");
@@ -138,6 +140,7 @@ const adresseNumeroInput = document.getElementById("adresse-numero");
 const adresseNomFamilleInput = document.getElementById("adresse-nom-famille");
 const adresseObservationInput = document.getElementById("adresse-observation");
 const adresseAnnulerBtn = document.getElementById("adresse-annuler");
+const adresseSupprimerBtn = document.getElementById("adresse-supprimer");
 
 const dialogRenommerRue = document.getElementById("dialog-renommer-rue");
 const formRenommerRue = document.getElementById("form-renommer-rue");
@@ -1025,6 +1028,23 @@ formAdresse.addEventListener("submit", async () => {
   rafraichirVueApp();
 });
 
+adresseSupprimerBtn.addEventListener("click", async () => {
+  if (!adresseEnEdition) return;
+
+  const confirme = window.confirm(
+    `Supprimer définitivement l'adresse "${adresseEnEdition.numero}" et l'historique de ses dons ? Cette action est irréversible.`
+  );
+  if (!confirme) return;
+
+  const id = adresseEnEdition.id;
+  await deleteAdresse(id);
+  supprimerDeSupabase("adresses", id);
+
+  adresseEnEdition = null;
+  dialogAdresse.close();
+  rafraichirVueApp();
+});
+
 // --- Ajouter une adresse dans la rue affichée ------------------------
 btnAjouterAdresse.addEventListener("click", () => {
   formNouvelleAdresse.reset();
@@ -1248,6 +1268,8 @@ function ouvrirDialogDon(adresse, dons = []) {
   adresseCourante = adresse;
   donAdresseLabel.textContent = `Don - n°${adresse.numero}`;
   formDon.reset();
+  donMessageEl.textContent = "";
+  donMessageEl.className = "connexion-message";
 
   // Si un don existe déjà pour cette année (on rouvre le pavé pour le
   // vérifier ou le corriger), on réaffiche exactement ce qui a été
@@ -1283,7 +1305,10 @@ function ouvrirDialogDon(adresse, dons = []) {
 
 donAnnulerBtn.addEventListener("click", () => dialogDon.close());
 
-formDon.addEventListener("submit", async () => {
+formDon.addEventListener("submit", async (event) => {
+  // Le formulaire est en method="dialog" : sans preventDefault, la fenêtre
+  // se fermerait automatiquement même si la validation ci-dessous échoue.
+  event.preventDefault();
   if (!adresseCourante) return;
 
   const montantFinal = refuseSelectionne
@@ -1291,6 +1316,21 @@ formDon.addEventListener("submit", async () => {
     : montantSelectionne !== null
       ? montantSelectionne
       : parseFloat(donMontantAutreInput.value || "0");
+
+  if (!refuseSelectionne) {
+    if (!montantFinal || montantFinal <= 0) {
+      donMessageEl.textContent = "Choisis un montant avant d'enregistrer.";
+      donMessageEl.className = "connexion-message erreur";
+      return;
+    }
+    if (!modePaiementSelectionne) {
+      donMessageEl.textContent = "Choisis un mode de paiement (espèces ou chèque) avant d'enregistrer.";
+      donMessageEl.className = "connexion-message erreur";
+      return;
+    }
+  }
+  donMessageEl.textContent = "";
+  donMessageEl.className = "connexion-message";
 
   const don = await enregistrerDon({
     adresse_id: adresseCourante.id,
@@ -1308,6 +1348,7 @@ formDon.addEventListener("submit", async () => {
   pousserVersSupabase("adresses", { id: adresseMaj.id, rue_id: adresseMaj.rue_id, maj_le: adresseMaj.maj_le });
 
   adresseCourante = null;
+  dialogDon.close();
   rafraichirVueApp();
 });
 
@@ -1327,6 +1368,20 @@ async function pousserVersSupabase(table, valeurs) {
   const { error } = await supabase.from(table).upsert(valeurs);
   if (error) {
     console.warn(`[supabase] échec de synchronisation (${table}) :`, error.message);
+  }
+}
+
+// Les dons liés sont supprimés automatiquement côté Supabase (on delete
+// cascade sur dons.adresse_id), comme dans le cache local.
+async function supprimerDeSupabase(table, id) {
+  if (modeDemo) return;
+
+  const supabase = await getSupabaseClient();
+  if (!supabase) return;
+
+  const { error } = await supabase.from(table).delete().eq("id", id);
+  if (error) {
+    console.warn(`[supabase] échec de suppression (${table}) :`, error.message);
   }
 }
 
