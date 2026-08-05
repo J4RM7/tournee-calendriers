@@ -7,7 +7,7 @@
 // Hiérarchie : tournée -> communes -> rues -> adresses -> dons.
 
 const DB_NAME = "tournee-calendriers";
-const DB_VERSION = 4;
+const DB_VERSION = 5;
 
 // Identifiants "démo" utilisés tant qu'on n'est pas connecté à un vrai
 // compte (mode démo hors-ligne, sans backend).
@@ -41,6 +41,13 @@ function openDB() {
       // depuis Supabase à la prochaine connexion, donc on repart à vide ici
       // aussi plutôt que de migrer les enregistrements existants.
       if (event.oldVersion < 4) {
+        for (const nom of ["tournees", "communes", "rues", "adresses", "dons"]) {
+          if (db.objectStoreNames.contains(nom)) db.deleteObjectStore(nom);
+        }
+      }
+      // v5 ajoute adresses.ordre (rang modifiable manuellement, façon
+      // playlist). Même logique qu'en v4 : cache local repartant à vide.
+      if (event.oldVersion < 5) {
         for (const nom of ["tournees", "communes", "rues", "adresses", "dons"]) {
           if (db.objectStoreNames.contains(nom)) db.deleteObjectStore(nom);
         }
@@ -145,15 +152,15 @@ export async function seedIfEmpty() {
   const creeLe = (minutesAvant) => new Date(Date.now() - minutesAvant * 60000).toISOString();
 
   const adressesDemo = [
-    { id: "demo-adresse-1", rue_id: DEMO_RUE_ID, numero: "2", nom_famille: "Dupont", passage_1: "passe", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant, created_at: creeLe(3) },
-    { id: "demo-adresse-2", rue_id: DEMO_RUE_ID, numero: "4", nom_famille: "Martin", passage_1: "absent", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant, created_at: creeLe(4) },
-    { id: "demo-adresse-3", rue_id: DEMO_RUE_ID, numero: "6", nom_famille: "Bernard", passage_1: "passe", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant, created_at: creeLe(1) },
-    { id: "demo-adresse-4", rue_id: DEMO_RUE_ID, numero: "8", nom_famille: "Petit", passage_1: "absent", passage_2: "absent", passage_3: "a_faire", maj_le: maintenant, created_at: creeLe(2) },
-    { id: "demo-adresse-5", rue_id: DEMO_RUE_2_ID, numero: "1", nom_famille: "Roux", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(6) },
-    { id: "demo-adresse-6", rue_id: DEMO_RUE_2_ID, numero: "3", nom_famille: "Fournier", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(5) },
-    { id: "demo-adresse-7", rue_id: DEMO_RUE_2_ID, numero: "5", nom_famille: null, passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(7) },
-    { id: "demo-adresse-8", rue_id: DEMO_RUE_3_ID, numero: "10", nom_famille: "Girard", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(9) },
-    { id: "demo-adresse-9", rue_id: DEMO_RUE_3_ID, numero: "12", nom_famille: "Blanc", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(8) },
+    { id: "demo-adresse-1", rue_id: DEMO_RUE_ID, numero: "2", nom_famille: "Dupont", passage_1: "passe", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant, created_at: creeLe(3), ordre: 1 },
+    { id: "demo-adresse-2", rue_id: DEMO_RUE_ID, numero: "4", nom_famille: "Martin", passage_1: "absent", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant, created_at: creeLe(4), ordre: 0 },
+    { id: "demo-adresse-3", rue_id: DEMO_RUE_ID, numero: "6", nom_famille: "Bernard", passage_1: "passe", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant, created_at: creeLe(1), ordre: 3 },
+    { id: "demo-adresse-4", rue_id: DEMO_RUE_ID, numero: "8", nom_famille: "Petit", passage_1: "absent", passage_2: "absent", passage_3: "a_faire", maj_le: maintenant, created_at: creeLe(2), ordre: 2 },
+    { id: "demo-adresse-5", rue_id: DEMO_RUE_2_ID, numero: "1", nom_famille: "Roux", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(6), ordre: 1 },
+    { id: "demo-adresse-6", rue_id: DEMO_RUE_2_ID, numero: "3", nom_famille: "Fournier", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(5), ordre: 2 },
+    { id: "demo-adresse-7", rue_id: DEMO_RUE_2_ID, numero: "5", nom_famille: null, passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(7), ordre: 0 },
+    { id: "demo-adresse-8", rue_id: DEMO_RUE_3_ID, numero: "10", nom_famille: "Girard", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(9), ordre: 0 },
+    { id: "demo-adresse-9", rue_id: DEMO_RUE_3_ID, numero: "12", nom_famille: "Blanc", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(8), ordre: 1 },
   ];
 
   for (const a of adressesDemo) {
@@ -170,6 +177,7 @@ export async function seedIfEmpty() {
       notes: "",
       maj_le: a.maj_le,
       created_at: a.created_at,
+      ordre: a.ordre,
     });
   }
 
@@ -256,6 +264,28 @@ export async function getAdressesByRue(rueId) {
   return getAllByIndex("adresses", "rue_id", rueId);
 }
 
+// Rang à donner à une nouvelle adresse pour qu'elle arrive en dernier dans
+// sa rue (ordre de saisie par défaut, modifiable ensuite au glisser-déposer).
+export async function prochainOrdre(rueId) {
+  const adresses = await getAdressesByRue(rueId);
+  if (adresses.length === 0) return 0;
+  return Math.max(...adresses.map((a) => a.ordre ?? 0)) + 1;
+}
+
+// Applique un nouvel ordre (glisser-déposer façon playlist) : `idsOrdonnes`
+// est la liste des identifiants d'adresses de la rue, dans leur nouvel ordre.
+export async function reordonnerAdresses(idsOrdonnes) {
+  const adressesMaj = [];
+  for (let i = 0; i < idsOrdonnes.length; i++) {
+    const adresse = await get("adresses", idsOrdonnes[i]);
+    if (!adresse || adresse.ordre === i) continue;
+    adresse.ordre = i;
+    await put("adresses", adresse);
+    adressesMaj.push(adresse);
+  }
+  return adressesMaj;
+}
+
 export async function updateAdressePassage(id, numeroPassage, nouvelEtat) {
   const adresse = await get("adresses", id);
   if (!adresse) return;
@@ -295,6 +325,7 @@ export async function addAdresse(champs) {
     nom_famille: null,
     maj_le: null,
     created_at: new Date().toISOString(),
+    ordre: champs.rue_id ? await prochainOrdre(champs.rue_id) : 0,
     ...champs,
   };
   await put("adresses", record);

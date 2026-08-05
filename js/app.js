@@ -18,6 +18,7 @@ import {
   getDonsByAdresse,
   trouverDonPourAnnee,
   statutValidationAdresse,
+  reordonnerAdresses,
   DEMO_TOURNEE_ID,
   DEMO_AGENT_ID,
 } from "./db.js";
@@ -37,12 +38,10 @@ const PROCHAIN_ETAT_PASSAGE = { a_faire: "passe", passe: "absent", absent: "a_fa
 const LABEL_PASSAGE = { a_faire: "à faire", passe: "passé", absent: "absent" };
 
 const vueAccueilEl = document.getElementById("vue-accueil");
-const accueilProgressionCompteurEl = document.getElementById("accueil-progression-compteur");
-const accueilProgressionFillEl = document.getElementById("accueil-progression-fill");
-const totalAnneeCouranteEl = document.getElementById("total-annee-courante");
-const totalAnneePrecedenteEl = document.getElementById("total-annee-precedente");
 const paveAccueilTourneeBtn = document.getElementById("pave-accueil-tournee");
 const paveAccueilTourneeTitreEl = document.getElementById("pave-accueil-tournee-titre");
+const paveAccueilStatsBtn = document.getElementById("pave-accueil-stats");
+const paveAccueilRechercheBtn = document.getElementById("pave-accueil-recherche");
 const paveAccueilCartoBtn = document.getElementById("pave-accueil-carto");
 const paveAccueilComptaBtn = document.getElementById("pave-accueil-compta");
 const paveAccueilFinCampagneBtn = document.getElementById("pave-accueil-fin-campagne");
@@ -55,7 +54,27 @@ const btnExportPdfAgent = document.getElementById("btn-export-pdf-agent");
 const btnExportExcelAgent = document.getElementById("btn-export-excel-agent");
 const exportAgentMessageEl = document.getElementById("export-agent-message");
 
+const vueStatistiquesEl = document.getElementById("vue-statistiques");
+const statTotalCourantEl = document.getElementById("stat-total-courant");
+const statTotalPrecedentEl = document.getElementById("stat-total-precedent");
+const statVariationEl = document.getElementById("stat-variation");
+const statProgressionPourcentageEl = document.getElementById("stat-progression-pourcentage");
+const statProgressionFillEl = document.getElementById("stat-progression-fill");
+const statMaisonsRestantesEl = document.getElementById("stat-maisons-restantes");
+const statNbDonateursEl = document.getElementById("stat-nb-donateurs");
+const statNbRefusEl = document.getElementById("stat-nb-refus");
+
+const vueRechercheEl = document.getElementById("vue-recherche");
+const rechercheInputEl = document.getElementById("recherche-input");
+const rechercheResultatsEl = document.getElementById("recherche-resultats");
+const rechercheVideEl = document.getElementById("recherche-vide");
+
 const vueListeRuesEl = document.getElementById("vue-liste-rues");
+const ongletsTourneeEl = document.getElementById("onglets-tournee");
+const ongletToutesEl = document.getElementById("onglet-toutes");
+const ongletRepassesEl = document.getElementById("onglet-repasses");
+const ongletAFaireEl = document.getElementById("onglet-a-faire");
+const ongletVideEl = document.getElementById("onglet-vide");
 const communesContainerEl = document.getElementById("communes-container");
 const btnAjouterCommune = document.getElementById("btn-ajouter-commune");
 
@@ -65,6 +84,7 @@ const rueDetailNomEl = document.getElementById("rue-detail-nom");
 const btnModifierRueDetail = document.getElementById("btn-modifier-rue-detail");
 const rueDetailCompteurEl = document.getElementById("rue-detail-compteur");
 const rueDetailProgressEl = document.getElementById("rue-detail-progress");
+const btnReorganiser = document.getElementById("btn-reorganiser");
 const rueDetailListeEl = document.getElementById("rue-detail-liste");
 const btnAjouterAdresse = document.getElementById("btn-ajouter-adresse");
 
@@ -157,7 +177,9 @@ let tourneeActuelleId = null;
 let rueActuelleId = null;
 let modeDemo = false;
 let vueActuelle = "connexion"; // "connexion" | "app" | "admin"
-let vueAppInterne = "accueil"; // "accueil" | "liste-rues" | "rue-detail" | "cartographie" | "compta" | "fin-campagne"
+let vueAppInterne = "accueil"; // "accueil" | "liste-rues" | "rue-detail" | "statistiques" | "recherche" | "cartographie" | "compta" | "fin-campagne"
+let ongletTourneeActuel = "toutes"; // "toutes" | "repasses" | "a-faire"
+let modeReorganisation = false;
 let agentsDisponibles = [];
 
 // --- Service worker ---------------------------------------------------
@@ -342,52 +364,78 @@ function masquerToutesLesVuesApp() {
   vueAccueilEl.hidden = true;
   vueListeRuesEl.hidden = true;
   vueRueDetailEl.hidden = true;
+  vueStatistiquesEl.hidden = true;
+  vueRechercheEl.hidden = true;
   vueCartographieEl.hidden = true;
   vueComptaEl.hidden = true;
   vueFinCampagneAgentEl.hidden = true;
 }
 
-async function calculerTotauxTournee(tourneeId) {
-  const anneeCourante = new Date().getFullYear();
-  let totalCourant = 0;
-  let totalPrecedent = 0;
+// Rafraîchit la vue actuellement affichée après une action (passage, don,
+// modification d'adresse) — appelé depuis n'importe quel écran qui affiche
+// des lignes d'adresse (détail de rue, onglets Repasses/A faire, recherche),
+// pour ne pas avoir à coder le rafraîchissement séparément à chaque endroit.
+async function rafraichirVueApp() {
+  if (vueAppInterne === "rue-detail") {
+    await rendreRueDetail();
+  } else if (vueAppInterne === "liste-rues") {
+    await rendreOngletActuel();
+  } else if (vueAppInterne === "recherche") {
+    await rechercherAdresses(rechercheInputEl.value);
+  }
+}
 
+// Toutes les adresses d'une tournée, avec leur rue et leur commune —
+// utilisé par les statistiques, la recherche et les onglets Repasses/A faire.
+async function obtenirAdressesTournee(tourneeId) {
+  const resultat = [];
   const communes = await getCommunesByTournee(tourneeId);
   for (const commune of communes) {
     const rues = await getRuesByCommune(commune.id);
     for (const rue of rues) {
       const adresses = await getAdressesByRue(rue.id);
       for (const adresse of adresses) {
-        const dons = await getDonsByAdresse(adresse.id);
-        const donCourant = trouverDonPourAnnee(dons, anneeCourante);
-        const donPrecedent = trouverDonPourAnnee(dons, anneeCourante - 1);
-        if (donCourant && !donCourant.refuse) totalCourant += donCourant.montant;
-        if (donPrecedent && !donPrecedent.refuse) totalPrecedent += donPrecedent.montant;
+        resultat.push({ adresse, rue, commune });
       }
     }
   }
-
-  return { totalCourant, totalPrecedent };
+  return resultat;
 }
 
-async function calculerProgressionTournee(tourneeId) {
-  let total = 0;
-  let traitees = 0;
+// Un seul passage sur toutes les adresses de la tournée pour calculer tous
+// les indicateurs de l'écran Statistiques (évite de boucler 3 fois sur les
+// mêmes communes/rues/adresses).
+async function calculerStatistiquesTournee(tourneeId) {
+  const anneeCourante = new Date().getFullYear();
+  const items = tourneeId ? await obtenirAdressesTournee(tourneeId) : [];
 
-  const communes = await getCommunesByTournee(tourneeId);
-  for (const commune of communes) {
-    const rues = await getRuesByCommune(commune.id);
-    for (const rue of rues) {
-      const adresses = await getAdressesByRue(rue.id);
-      total += adresses.length;
-      traitees += adresses.filter(estAdresseValidee).length;
+  let totalCourant = 0;
+  let totalPrecedent = 0;
+  let nbDonateurs = 0;
+  let nbRefus = 0;
+  let maisonsValidees = 0;
+
+  for (const { adresse } of items) {
+    if (estAdresseValidee(adresse)) maisonsValidees++;
+
+    const dons = await getDonsByAdresse(adresse.id);
+    const donCourant = trouverDonPourAnnee(dons, anneeCourante);
+    const donPrecedent = trouverDonPourAnnee(dons, anneeCourante - 1);
+
+    if (donCourant) {
+      if (donCourant.refuse) nbRefus++;
+      else {
+        totalCourant += donCourant.montant;
+        nbDonateurs++;
+      }
     }
+    if (donPrecedent && !donPrecedent.refuse) totalPrecedent += donPrecedent.montant;
   }
 
-  return { total, traitees };
+  return { totalCourant, totalPrecedent, nbDonateurs, nbRefus, totalMaisons: items.length, maisonsValidees };
 }
 
-// --- Page d'accueil (4 pavés) --------------------------------------------
+// --- Page d'accueil (pavés) -----------------------------------------------
 async function afficherAccueil() {
   vueAppInterne = "accueil";
   masquerToutesLesVuesApp();
@@ -405,23 +453,9 @@ async function afficherAccueil() {
     tourneeInfoEl.hidden = true;
     paveAccueilTourneeTitreEl.textContent = "Tournée";
   }
-
-  const progression = tourneeActuelleId
-    ? await calculerProgressionTournee(tourneeActuelleId)
-    : { total: 0, traitees: 0 };
-  accueilProgressionCompteurEl.textContent = formaterCompteur(progression.traitees, progression.total);
-  accueilProgressionFillEl.style.width = progression.total
-    ? `${Math.round((progression.traitees / progression.total) * 100)}%`
-    : "0%";
-
-  const totaux = tourneeActuelleId
-    ? await calculerTotauxTournee(tourneeActuelleId)
-    : { totalCourant: 0, totalPrecedent: 0 };
-  totalAnneeCouranteEl.textContent = formaterMontant(totaux.totalCourant);
-  totalAnneePrecedenteEl.textContent = formaterMontant(totaux.totalPrecedent);
 }
 
-paveAccueilTourneeBtn.addEventListener("click", () => afficherListeRues());
+paveAccueilTourneeBtn.addEventListener("click", () => afficherListeRues("toutes"));
 paveAccueilCartoBtn.addEventListener("click", () => {
   vueAppInterne = "cartographie";
   masquerToutesLesVuesApp();
@@ -437,7 +471,112 @@ paveAccueilFinCampagneBtn.addEventListener("click", () => {
   masquerToutesLesVuesApp();
   vueFinCampagneAgentEl.hidden = false;
 });
+paveAccueilStatsBtn.addEventListener("click", () => afficherStatistiques());
+paveAccueilRechercheBtn.addEventListener("click", () => afficherRecherche());
 boutonsRetourAccueil.forEach((btn) => btn.addEventListener("click", () => afficherAccueil()));
+
+// --- Écran Statistiques ---------------------------------------------------
+async function afficherStatistiques() {
+  vueAppInterne = "statistiques";
+  masquerToutesLesVuesApp();
+  vueStatistiquesEl.hidden = false;
+
+  const stats = tourneeActuelleId
+    ? await calculerStatistiquesTournee(tourneeActuelleId)
+    : { totalCourant: 0, totalPrecedent: 0, nbDonateurs: 0, nbRefus: 0, totalMaisons: 0, maisonsValidees: 0 };
+
+  statTotalCourantEl.textContent = formaterMontant(stats.totalCourant);
+  statTotalPrecedentEl.textContent = formaterMontant(stats.totalPrecedent);
+
+  if (stats.totalPrecedent > 0) {
+    const variation = ((stats.totalCourant - stats.totalPrecedent) / stats.totalPrecedent) * 100;
+    const signe = variation >= 0 ? "+" : "";
+    statVariationEl.textContent = `${signe}${Math.round(variation)} % vs l'an dernier`;
+    statVariationEl.className = "stat-variation " + (variation >= 0 ? "positif" : "negatif");
+  } else if (stats.totalCourant > 0) {
+    statVariationEl.textContent = "Aucun don l'an dernier";
+    statVariationEl.className = "stat-variation";
+  } else {
+    statVariationEl.textContent = "";
+    statVariationEl.className = "stat-variation";
+  }
+
+  const pourcentage = stats.totalMaisons ? Math.round((stats.maisonsValidees / stats.totalMaisons) * 100) : 0;
+  statProgressionPourcentageEl.textContent = `${pourcentage} %`;
+  statProgressionFillEl.style.width = `${pourcentage}%`;
+  const restantes = stats.totalMaisons - stats.maisonsValidees;
+  statMaisonsRestantesEl.textContent =
+    restantes > 0
+      ? `${restantes} maison${restantes > 1 ? "s" : ""} restante${restantes > 1 ? "s" : ""} à valider`
+      : stats.totalMaisons > 0
+        ? "Toutes les maisons sont validées"
+        : "Aucune maison pour l'instant";
+
+  statNbDonateursEl.textContent = String(stats.nbDonateurs);
+  statNbRefusEl.textContent = String(stats.nbRefus);
+}
+
+// --- Écran Recherche -------------------------------------------------------
+function normaliserTexte(texte) {
+  return (texte || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase();
+}
+
+async function rechercherAdresses(terme) {
+  rechercheResultatsEl.innerHTML = "";
+  const termeNormalise = normaliserTexte(terme.trim());
+  if (!termeNormalise) {
+    rechercheVideEl.hidden = true;
+    return;
+  }
+
+  const items = tourneeActuelleId ? await obtenirAdressesTournee(tourneeActuelleId) : [];
+  const resultats = items.filter(({ adresse }) => normaliserTexte(adresse.nom_famille).includes(termeNormalise));
+
+  rechercheVideEl.hidden = resultats.length > 0;
+  for (const { adresse, rue, commune } of resultats) {
+    const dons = await getDonsByAdresse(adresse.id);
+    const li = creerLigneAdresse(adresse, dons, rue, commune);
+    // On peut traiter la maison directement depuis le résultat (cases de
+    // passage, don) — mais cliquer ailleurs sur la ligne amène sur sa rue,
+    // pour voir les maisons voisines ou la renommer si besoin.
+    li.classList.add("adresse-cliquable");
+    li.addEventListener("click", (event) => {
+      if (event.target.closest("button")) return;
+      allerVersAdresse(rue.id, adresse.id);
+    });
+    rechercheResultatsEl.appendChild(li);
+  }
+}
+
+async function afficherRecherche() {
+  vueAppInterne = "recherche";
+  masquerToutesLesVuesApp();
+  vueRechercheEl.hidden = false;
+  rechercheInputEl.value = "";
+  rechercheResultatsEl.innerHTML = "";
+  rechercheVideEl.hidden = true;
+  rechercheInputEl.focus();
+}
+
+let rechercheDebounce = null;
+rechercheInputEl.addEventListener("input", () => {
+  clearTimeout(rechercheDebounce);
+  rechercheDebounce = setTimeout(() => rechercherAdresses(rechercheInputEl.value), 150);
+});
+
+// Va directement sur la maison recherchée : on affiche sa rue, puis on fait
+// défiler jusqu'à sa ligne et on la met en surbrillance un instant.
+async function allerVersAdresse(rueId, adresseId) {
+  await afficherRueDetail(rueId);
+  const ligne = rueDetailListeEl.querySelector(`[data-id="${adresseId}"]`);
+  if (!ligne) return;
+  ligne.scrollIntoView({ behavior: "smooth", block: "center" });
+  ligne.classList.add("adresse-surlignee");
+  setTimeout(() => ligne.classList.remove("adresse-surlignee"), 2000);
+}
 
 // Export personnel (agent) : mêmes fonctions que côté admin, mais la RLS
 // Supabase limite automatiquement le résultat à la tournée de l'agent.
@@ -470,12 +609,13 @@ btnExportExcelAgent.addEventListener("click", async () => {
   }
 });
 
-async function afficherListeRues() {
+async function afficherListeRues(onglet) {
   vueAppInterne = "liste-rues";
+  ongletTourneeActuel = onglet || ongletTourneeActuel || "toutes";
   masquerToutesLesVuesApp();
   vueListeRuesEl.hidden = false;
 
-  const tournee = await getTournee(tourneeActuelleId);
+  const tournee = tourneeActuelleId ? await getTournee(tourneeActuelleId) : null;
   if (tournee) {
     const noms = (tournee.agents || [])
       .map((a) => `${a.prenom} ${a.nom}`.trim())
@@ -486,6 +626,32 @@ async function afficherListeRues() {
     tourneeInfoEl.hidden = true;
   }
 
+  ongletsTourneeEl.querySelectorAll(".onglet").forEach((btn) => {
+    btn.classList.toggle("actif", btn.dataset.onglet === ongletTourneeActuel);
+  });
+  ongletToutesEl.hidden = ongletTourneeActuel !== "toutes";
+  ongletRepassesEl.hidden = ongletTourneeActuel !== "repasses";
+  ongletAFaireEl.hidden = ongletTourneeActuel !== "a-faire";
+  ongletVideEl.hidden = true;
+
+  await rendreOngletActuel();
+}
+
+ongletsTourneeEl.querySelectorAll(".onglet").forEach((btn) => {
+  btn.addEventListener("click", () => afficherListeRues(btn.dataset.onglet));
+});
+
+async function rendreOngletActuel() {
+  if (ongletTourneeActuel === "repasses") {
+    await rendreOngletFiltre(ongletRepassesEl, (a) => statutValidationAdresse(a) === "attente");
+  } else if (ongletTourneeActuel === "a-faire") {
+    await rendreOngletFiltre(ongletAFaireEl, (a) => statutValidationAdresse(a) === "neutre");
+  } else {
+    await rendreOngletToutes();
+  }
+}
+
+async function rendreOngletToutes() {
   communesContainerEl.innerHTML = "";
 
   if (!tourneeActuelleId) {
@@ -505,6 +671,36 @@ async function afficherListeRues() {
 
   for (const commune of communes) {
     communesContainerEl.appendChild(await creerBlocCommune(commune));
+  }
+}
+
+// Listing plat (toutes rues confondues) pour les onglets "Repasses" et
+// "A faire" : trié par commune puis rue, et à l'intérieur d'une même rue,
+// par ordre de saisie/rang manuel — comme dans le détail d'une rue.
+async function rendreOngletFiltre(container, predicate) {
+  container.innerHTML = "";
+  ongletVideEl.hidden = true;
+  if (!tourneeActuelleId) return;
+
+  const items = await obtenirAdressesTournee(tourneeActuelleId);
+  const filtres = items.filter(({ adresse }) => predicate(adresse));
+  filtres.sort((a, b) => {
+    const communeCmp = a.commune.nom.localeCompare(b.commune.nom, "fr");
+    if (communeCmp !== 0) return communeCmp;
+    const rueCmp = a.rue.nom.localeCompare(b.rue.nom, "fr");
+    if (rueCmp !== 0) return rueCmp;
+    return (a.adresse.ordre ?? 0) - (b.adresse.ordre ?? 0);
+  });
+
+  if (filtres.length === 0) {
+    ongletVideEl.textContent = "Rien ici pour l'instant.";
+    ongletVideEl.hidden = false;
+    return;
+  }
+
+  for (const { adresse, rue, commune } of filtres) {
+    const dons = await getDonsByAdresse(adresse.id);
+    container.appendChild(creerLigneAdresse(adresse, dons, rue, commune));
   }
 }
 
@@ -553,10 +749,21 @@ btnRetourRues.addEventListener("click", () => afficherListeRues());
 async function afficherRueDetail(rueId) {
   vueAppInterne = "rue-detail";
   rueActuelleId = rueId;
+  modeReorganisation = false;
+  btnReorganiser.textContent = "⠿ Réorganiser";
+  btnReorganiser.classList.remove("actif");
   masquerToutesLesVuesApp();
   vueRueDetailEl.hidden = false;
   await rendreRueDetail();
 }
+
+btnReorganiser.addEventListener("click", () => {
+  modeReorganisation = !modeReorganisation;
+  btnReorganiser.classList.toggle("actif", modeReorganisation);
+  btnReorganiser.textContent = modeReorganisation ? "✓ Terminer" : "⠿ Réorganiser";
+  btnAjouterAdresse.hidden = modeReorganisation;
+  rendreRueDetail();
+});
 
 async function rendreRueDetail() {
   const rue = await getRue(rueActuelleId);
@@ -564,14 +771,21 @@ async function rendreRueDetail() {
   rueDetailNomEl.textContent = rue ? `${rue.nom}, ${commune?.nom ?? ""}` : "";
 
   const adresses = await getAdressesByRue(rueActuelleId);
-  adresses.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
+  adresses.sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
 
   const total = adresses.length;
   const traitees = adresses.filter(estAdresseValidee).length;
   rueDetailCompteurEl.textContent = formaterCompteur(traitees, total);
   rueDetailProgressEl.style.width = total ? `${Math.round((traitees / total) * 100)}%` : "0%";
+  btnReorganiser.hidden = total < 2;
 
   rueDetailListeEl.innerHTML = "";
+  if (modeReorganisation) {
+    for (const adresse of adresses) {
+      rueDetailListeEl.appendChild(creerLigneReorganisation(adresse, rue));
+    }
+    return;
+  }
   for (const adresse of adresses) {
     const dons = await getDonsByAdresse(adresse.id);
     rueDetailListeEl.appendChild(creerLigneAdresse(adresse, dons, rue, commune));
@@ -581,6 +795,7 @@ async function rendreRueDetail() {
 function creerLigneAdresse(adresse, dons, rue, commune) {
   const li = document.createElement("li");
   li.className = `adresse-item statut-${statutValidationAdresse(adresse)}`;
+  li.dataset.id = adresse.id;
 
   const info = document.createElement("div");
   info.className = "adresse-info";
@@ -616,7 +831,7 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
         [`passage_${n}`]: nouvelEtat,
         maj_le: adresseMaj.maj_le,
       });
-      rendreRueDetail();
+      rafraichirVueApp();
     });
     passagesEl.appendChild(btn);
   }
@@ -665,6 +880,77 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
   return li;
 }
 
+// --- Réorganisation des maisons (glisser-déposer façon playlist) ---------
+// Ligne simplifiée affichée uniquement en mode réorganisation : juste le nom
+// et une poignée à glisser, pour ne pas interférer avec les cases de
+// passage/don pendant le glissement.
+function creerLigneReorganisation(adresse, rue) {
+  const li = document.createElement("li");
+  li.className = "adresse-item adresse-reorg";
+  li.dataset.id = adresse.id;
+
+  const prefixeNom = adresse.nom_famille ? `${adresse.nom_famille} — ` : "";
+  const label = document.createElement("span");
+  label.className = "adresse-reorg-label";
+  label.textContent = `${prefixeNom}${adresse.numero} ${rue?.nom ?? ""}`;
+
+  const poignee = document.createElement("span");
+  poignee.className = "drag-handle";
+  poignee.textContent = "⠿";
+
+  li.append(label, poignee);
+  activerGlisserDeposer(li, poignee);
+  return li;
+}
+
+// Glisser-déposer tactile/souris via l'API Pointer Events : la ligne ne
+// bouge pas dans le DOM pendant le glissement (elle flotte au-dessus grâce à
+// `transform`), le vrai déplacement n'a lieu qu'au relâchement — ça évite les
+// sauts visuels qu'un réordonnancement en continu provoquerait.
+function activerGlisserDeposer(item, poignee) {
+  poignee.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    const liste = item.parentElement;
+    const items = () => [...liste.querySelectorAll(".adresse-reorg")];
+    const autres = items()
+      .filter((el) => el !== item)
+      .map((el) => ({ el, rect: el.getBoundingClientRect() }));
+
+    poignee.setPointerCapture(event.pointerId);
+    const startY = event.clientY;
+    const startRect = item.getBoundingClientRect();
+    item.classList.add("en-glisse");
+
+    function onMove(e) {
+      const deltaY = e.clientY - startY;
+      item.style.transform = `translateY(${deltaY}px)`;
+    }
+
+    async function onUp(e) {
+      poignee.releasePointerCapture(event.pointerId);
+      poignee.removeEventListener("pointermove", onMove);
+      poignee.removeEventListener("pointerup", onUp);
+      item.classList.remove("en-glisse");
+      item.style.transform = "";
+
+      const deltaY = e.clientY - startY;
+      const itemMid = startRect.top + startRect.height / 2 + deltaY;
+      const cible = autres.find(({ rect }) => itemMid < rect.top + rect.height / 2);
+      if (cible) liste.insertBefore(item, cible.el);
+      else liste.appendChild(item);
+
+      const idsOrdonnes = items().map((el) => el.dataset.id);
+      const adressesMaj = await reordonnerAdresses(idsOrdonnes);
+      for (const a of adressesMaj) {
+        pousserVersSupabase("adresses", { id: a.id, rue_id: a.rue_id, ordre: a.ordre });
+      }
+    }
+
+    poignee.addEventListener("pointermove", onMove);
+    poignee.addEventListener("pointerup", onUp);
+  });
+}
+
 // --- Formulaire de modification d'une adresse -----------------------------
 function ouvrirDialogAdresse(adresse) {
   adresseEnEdition = adresse;
@@ -693,7 +979,7 @@ formAdresse.addEventListener("submit", async () => {
   });
 
   adresseEnEdition = null;
-  rendreRueDetail();
+  rafraichirVueApp();
 });
 
 // --- Ajouter une adresse dans la rue affichée ------------------------
@@ -932,7 +1218,7 @@ formDon.addEventListener("submit", async () => {
   pousserVersSupabase("adresses", { id: adresseMaj.id, rue_id: adresseMaj.rue_id, maj_le: adresseMaj.maj_le });
 
   adresseCourante = null;
-  rendreRueDetail();
+  rafraichirVueApp();
 });
 
 // --- Synchronisation "au mieux" vers Supabase ------------------------------

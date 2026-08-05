@@ -47,26 +47,18 @@
 
   <main id="app" hidden>
     <section id="vue-accueil">
-      <div class="accueil-progression">
-        <span id="accueil-progression-compteur" class="rue-compteur"></span>
-        <div class="progress-bar"><div id="accueil-progression-fill" class="progress-fill"></div></div>
-      </div>
-
-      <div class="accueil-totaux">
-        <div class="total-carte">
-          <span class="total-label">Récolté cette année</span>
-          <span id="total-annee-courante" class="total-montant">0,00 €</span>
-        </div>
-        <div class="total-carte total-carte-precedente">
-          <span class="total-label">L'an dernier</span>
-          <span id="total-annee-precedente" class="total-montant">0,00 €</span>
-        </div>
-      </div>
-
       <div class="paves-accueil">
         <button type="button" id="pave-accueil-tournee" class="pave-accueil pave-accueil-tournee">
           <span class="pave-accueil-icone">📋</span>
           <span id="pave-accueil-tournee-titre">Tournée</span>
+        </button>
+        <button type="button" id="pave-accueil-stats" class="pave-accueil pave-accueil-stats">
+          <span class="pave-accueil-icone">📊</span>
+          <span>Statistiques</span>
+        </button>
+        <button type="button" id="pave-accueil-recherche" class="pave-accueil pave-accueil-recherche">
+          <span class="pave-accueil-icone">🔍</span>
+          <span>Recherche</span>
         </button>
         <button type="button" id="pave-accueil-carto" class="pave-accueil pave-accueil-carto">
           <span class="pave-accueil-icone">🗺️</span>
@@ -89,8 +81,21 @@
 
     <section id="vue-liste-rues" hidden>
       <button type="button" class="btn-retour" data-retour-accueil>← Accueil</button>
-      <div id="communes-container"></div>
-      <button type="button" id="btn-ajouter-commune" class="secondaire pave-pleine-largeur">+ Ajouter une commune</button>
+
+      <div class="onglets" id="onglets-tournee">
+        <button type="button" class="onglet actif" data-onglet="toutes">Toutes</button>
+        <button type="button" class="onglet" data-onglet="repasses">Repasses</button>
+        <button type="button" class="onglet" data-onglet="a-faire">A faire</button>
+      </div>
+
+      <div id="onglet-toutes">
+        <div id="communes-container"></div>
+        <button type="button" id="btn-ajouter-commune" class="secondaire pave-pleine-largeur">+ Ajouter une commune</button>
+      </div>
+
+      <ul id="onglet-repasses" class="liste-adresses" hidden></ul>
+      <ul id="onglet-a-faire" class="liste-adresses" hidden></ul>
+      <p id="onglet-vide" class="rue-vide" hidden></p>
     </section>
 
     <section id="vue-rue-detail" hidden>
@@ -105,10 +110,71 @@
           <span id="rue-detail-compteur" class="rue-compteur"></span>
           <div class="progress-bar"><div id="rue-detail-progress" class="progress-fill"></div></div>
         </div>
+        <button type="button" id="btn-reorganiser" class="secondaire">⠿ Réorganiser</button>
       </div>
 
       <ul id="rue-detail-liste" class="liste-adresses"></ul>
       <button type="button" id="btn-ajouter-adresse" class="secondaire pave-pleine-largeur">+ Ajouter une adresse</button>
+    </section>
+
+    <section id="vue-statistiques" hidden>
+      <button type="button" class="btn-retour" data-retour-accueil>← Accueil</button>
+      <h2>Statistiques</h2>
+
+      <div class="stats-grille">
+        <div class="stat-carte stat-carte-vert">
+          <span class="stat-icone">💶</span>
+          <div class="stat-corps">
+            <span class="stat-label">Récolté cette année</span>
+            <span id="stat-total-courant" class="stat-valeur">0,00 €</span>
+          </div>
+        </div>
+
+        <div class="stat-carte stat-carte-gris">
+          <span class="stat-icone">📅</span>
+          <div class="stat-corps">
+            <span class="stat-label">L'an dernier</span>
+            <span id="stat-total-precedent" class="stat-valeur">0,00 €</span>
+            <span id="stat-variation" class="stat-variation"></span>
+          </div>
+        </div>
+
+        <div class="stat-carte stat-carte-large">
+          <span class="stat-icone">🏠</span>
+          <div class="stat-corps stat-corps-large">
+            <div class="stat-progression-entete">
+              <span class="stat-label">Progression de la tournée</span>
+              <span id="stat-progression-pourcentage" class="stat-valeur">0 %</span>
+            </div>
+            <div class="progress-bar"><div id="stat-progression-fill" class="progress-fill"></div></div>
+            <span id="stat-maisons-restantes" class="stat-sous-texte"></span>
+          </div>
+        </div>
+
+        <div class="stat-carte stat-carte-bleu">
+          <span class="stat-icone">🙋</span>
+          <div class="stat-corps">
+            <span class="stat-label">Donateurs</span>
+            <span id="stat-nb-donateurs" class="stat-valeur">0</span>
+          </div>
+        </div>
+
+        <div class="stat-carte stat-carte-rouge">
+          <span class="stat-icone">🚫</span>
+          <div class="stat-corps">
+            <span class="stat-label">Refus</span>
+            <span id="stat-nb-refus" class="stat-valeur">0</span>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section id="vue-recherche" hidden>
+      <button type="button" class="btn-retour" data-retour-accueil>← Accueil</button>
+      <h2>Recherche</h2>
+      <input type="search" id="recherche-input" placeholder="Nom de famille…" autocomplete="off" />
+      <ul id="recherche-resultats" class="liste-adresses"></ul>
+      <p id="recherche-vide" class="rue-vide" hidden>Aucune adresse trouvée.</p>
     </section>
 
     <section id="vue-cartographie" hidden>

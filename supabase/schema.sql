@@ -92,7 +92,8 @@ create table adresses (
   passage_3 text not null default 'a_faire' check (passage_3 in ('a_faire', 'passe', 'absent')),
   notes text,
   maj_le timestamptz,
-  created_at timestamptz not null default now()
+  created_at timestamptz not null default now(),
+  ordre integer not null default 0
 );
 
 create index adresses_rue_id_idx on adresses (rue_id);

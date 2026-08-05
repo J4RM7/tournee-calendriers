@@ -110,45 +110,6 @@ main,
   font-weight: 600;
 }
 
-.accueil-progression {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  margin-bottom: 1.25rem;
-}
-
-.accueil-totaux {
-  display: flex;
-  gap: 0.75rem;
-  margin-bottom: 1.5rem;
-}
-
-.total-carte {
-  flex: 1;
-  background: white;
-  border: 1px solid var(--bordure);
-  border-radius: 12px;
-  padding: 1rem;
-  display: flex;
-  flex-direction: column;
-  gap: 0.3rem;
-}
-
-.total-carte-precedente {
-  background: var(--fond);
-}
-
-.total-label {
-  font-size: 0.78rem;
-  color: var(--gris);
-  font-weight: 600;
-}
-
-.total-montant {
-  font-size: 1.4rem;
-  font-weight: 800;
-}
-
 .paves-accueil {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
@@ -187,6 +148,8 @@ main,
 }
 
 .pave-accueil-tournee { background: #fdeceb; }
+.pave-accueil-stats { background: #f1e9fb; }
+.pave-accueil-recherche { background: #e6f7f7; }
 .pave-accueil-carto { background: #e8f1fc; }
 .pave-accueil-compta { background: #e7f6ec; }
 .pave-accueil-fin { background: #fff4e0; }
@@ -787,4 +750,163 @@ dialog::backdrop {
   border: 1px solid var(--bordure);
   border-radius: 6px;
   font: inherit;
+}
+
+/* --- Onglets (pavé Tournée : Toutes / Repasses / A faire) --------------- */
+.onglets {
+  display: flex;
+  gap: 0.4rem;
+  margin-bottom: 1rem;
+  border-bottom: 1px solid var(--bordure);
+}
+
+.onglet {
+  flex: 1;
+  padding: 0.6rem 0.4rem;
+  border: none;
+  background: none;
+  font: inherit;
+  font-weight: 600;
+  color: var(--gris);
+  border-bottom: 3px solid transparent;
+  margin-bottom: -1px;
+}
+
+.onglet.actif {
+  color: var(--rouge);
+  border-bottom-color: var(--rouge);
+}
+
+/* --- Écran Statistiques -------------------------------------------------- */
+.stats-grille {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.9rem;
+}
+
+.stat-carte {
+  background: white;
+  border: 1px solid var(--bordure);
+  border-radius: 14px;
+  padding: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.stat-carte-large {
+  grid-column: 1 / -1;
+}
+
+.stat-icone {
+  font-size: 1.8rem;
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.stat-corps {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+}
+
+.stat-corps-large {
+  flex: 1;
+  gap: 0.4rem;
+}
+
+.stat-label {
+  font-size: 0.78rem;
+  color: var(--gris);
+  font-weight: 600;
+}
+
+.stat-valeur {
+  font-size: 1.35rem;
+  font-weight: 800;
+}
+
+.stat-variation {
+  font-size: 0.8rem;
+  font-weight: 700;
+}
+
+.stat-variation.positif { color: var(--vert); }
+.stat-variation.negatif { color: var(--rouge); }
+
+.stat-progression-entete {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.stat-sous-texte {
+  font-size: 0.78rem;
+  color: var(--gris);
+}
+
+.stat-carte-vert { background: #f2faf3; }
+.stat-carte-gris { background: var(--fond); }
+.stat-carte-bleu { background: #f0f7fe; }
+.stat-carte-rouge { background: #fdf2f2; }
+
+/* --- Écran Recherche ------------------------------------------------------ */
+#recherche-input {
+  width: 100%;
+  font: inherit;
+  padding: 0.65rem 0.75rem;
+  border: 1px solid var(--bordure);
+  border-radius: 8px;
+  margin-bottom: 1rem;
+}
+
+.adresse-cliquable {
+  cursor: pointer;
+}
+
+@keyframes surlignage {
+  0%, 100% { box-shadow: none; }
+  20%, 80% { box-shadow: 0 0 0 3px var(--rouge-clair); }
+}
+
+.adresse-surlignee {
+  animation: surlignage 2s ease;
+}
+
+/* --- Réorganisation des maisons (glisser-déposer) ------------------------ */
+#btn-reorganiser.actif {
+  background: var(--rouge);
+  color: white;
+  border-color: var(--rouge);
+}
+
+.adresse-reorg {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
+  cursor: default;
+  touch-action: pan-y;
+}
+
+.adresse-reorg.en-glisse {
+  position: relative;
+  z-index: 20;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
+  opacity: 0.95;
+}
+
+.adresse-reorg-label {
+  font-weight: 600;
+}
+
+.drag-handle {
+  font-size: 1.3rem;
+  color: var(--gris);
+  padding: 0.3rem 0.6rem;
+  touch-action: none;
+  cursor: grab;
+  user-select: none;
 }
