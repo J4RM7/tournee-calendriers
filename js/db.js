@@ -7,7 +7,7 @@
 // Hiérarchie : tournée -> communes -> rues -> adresses -> dons.
 
 const DB_NAME = "tournee-calendriers";
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 // Identifiants "démo" utilisés tant qu'on n'est pas connecté à un vrai
 // compte (mode démo hors-ligne, sans backend).
@@ -35,6 +35,15 @@ function openDB() {
       // migrer des données de démo qui n'ont pas besoin d'être préservées.
       if (event.oldVersion < 3 && db.objectStoreNames.contains("adresses")) {
         db.deleteObjectStore("adresses");
+      }
+      // v4 ajoute adresses.created_at (tri par ordre de saisie). Le cache
+      // local n'est qu'une copie : les vraies données seront re-synchronisées
+      // depuis Supabase à la prochaine connexion, donc on repart à vide ici
+      // aussi plutôt que de migrer les enregistrements existants.
+      if (event.oldVersion < 4) {
+        for (const nom of ["tournees", "communes", "rues", "adresses", "dons"]) {
+          if (db.objectStoreNames.contains(nom)) db.deleteObjectStore(nom);
+        }
       }
       if (!db.objectStoreNames.contains("tournees")) {
         db.createObjectStore("tournees", { keyPath: "id" });
@@ -128,17 +137,23 @@ export async function seedIfEmpty() {
   await put("rues", { id: DEMO_RUE_3_ID, commune_id: DEMO_COMMUNE_ID, nom: "Chemin de Many" });
 
   const maintenant = new Date().toISOString();
+  // Décalages en minutes avant l'instant présent : détermine l'ordre de
+  // saisie simulé. Volontairement différent de l'ordre des numéros pour
+  // Montée de la Planète (Martin a été saisi avant Dupont sur le terrain,
+  // même si son numéro est plus grand), afin que la démo illustre bien le
+  // tri "par ordre de saisie" plutôt que par numéro.
+  const creeLe = (minutesAvant) => new Date(Date.now() - minutesAvant * 60000).toISOString();
 
   const adressesDemo = [
-    { id: "demo-adresse-1", rue_id: DEMO_RUE_ID, numero: "2", nom_famille: "Dupont", passage_1: "passe", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant },
-    { id: "demo-adresse-2", rue_id: DEMO_RUE_ID, numero: "4", nom_famille: "Martin", passage_1: "absent", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant },
-    { id: "demo-adresse-3", rue_id: DEMO_RUE_ID, numero: "6", nom_famille: "Bernard", passage_1: "passe", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant },
-    { id: "demo-adresse-4", rue_id: DEMO_RUE_ID, numero: "8", nom_famille: "Petit", passage_1: "absent", passage_2: "absent", passage_3: "a_faire", maj_le: maintenant },
-    { id: "demo-adresse-5", rue_id: DEMO_RUE_2_ID, numero: "1", nom_famille: "Roux", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null },
-    { id: "demo-adresse-6", rue_id: DEMO_RUE_2_ID, numero: "3", nom_famille: "Fournier", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null },
-    { id: "demo-adresse-7", rue_id: DEMO_RUE_2_ID, numero: "5", nom_famille: null, passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null },
-    { id: "demo-adresse-8", rue_id: DEMO_RUE_3_ID, numero: "10", nom_famille: "Girard", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null },
-    { id: "demo-adresse-9", rue_id: DEMO_RUE_3_ID, numero: "12", nom_famille: "Blanc", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null },
+    { id: "demo-adresse-1", rue_id: DEMO_RUE_ID, numero: "2", nom_famille: "Dupont", passage_1: "passe", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant, created_at: creeLe(3) },
+    { id: "demo-adresse-2", rue_id: DEMO_RUE_ID, numero: "4", nom_famille: "Martin", passage_1: "absent", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant, created_at: creeLe(4) },
+    { id: "demo-adresse-3", rue_id: DEMO_RUE_ID, numero: "6", nom_famille: "Bernard", passage_1: "passe", passage_2: "a_faire", passage_3: "a_faire", maj_le: maintenant, created_at: creeLe(1) },
+    { id: "demo-adresse-4", rue_id: DEMO_RUE_ID, numero: "8", nom_famille: "Petit", passage_1: "absent", passage_2: "absent", passage_3: "a_faire", maj_le: maintenant, created_at: creeLe(2) },
+    { id: "demo-adresse-5", rue_id: DEMO_RUE_2_ID, numero: "1", nom_famille: "Roux", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(6) },
+    { id: "demo-adresse-6", rue_id: DEMO_RUE_2_ID, numero: "3", nom_famille: "Fournier", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(5) },
+    { id: "demo-adresse-7", rue_id: DEMO_RUE_2_ID, numero: "5", nom_famille: null, passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(7) },
+    { id: "demo-adresse-8", rue_id: DEMO_RUE_3_ID, numero: "10", nom_famille: "Girard", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(9) },
+    { id: "demo-adresse-9", rue_id: DEMO_RUE_3_ID, numero: "12", nom_famille: "Blanc", passage_1: "a_faire", passage_2: "a_faire", passage_3: "a_faire", maj_le: null, created_at: creeLe(8) },
   ];
 
   for (const a of adressesDemo) {
@@ -154,6 +169,7 @@ export async function seedIfEmpty() {
       passage_3: a.passage_3,
       notes: "",
       maj_le: a.maj_le,
+      created_at: a.created_at,
     });
   }
 
@@ -278,6 +294,7 @@ export async function addAdresse(champs) {
     notes: null,
     nom_famille: null,
     maj_le: null,
+    created_at: new Date().toISOString(),
     ...champs,
   };
   await put("adresses", record);

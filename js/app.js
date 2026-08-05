@@ -564,7 +564,7 @@ async function rendreRueDetail() {
   rueDetailNomEl.textContent = rue ? `${rue.nom}, ${commune?.nom ?? ""}` : "";
 
   const adresses = await getAdressesByRue(rueActuelleId);
-  adresses.sort((a, b) => Number(a.numero) - Number(b.numero));
+  adresses.sort((a, b) => new Date(a.created_at) - new Date(b.created_at));
 
   const total = adresses.length;
   const traitees = adresses.filter(estAdresseValidee).length;
