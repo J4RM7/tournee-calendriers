@@ -24,16 +24,21 @@ body {
 
 .app-header {
   display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 1rem;
+  flex-direction: column;
+  gap: 0.4rem;
+  padding: 0.6rem 1rem;
   background: var(--rouge);
   color: white;
   position: sticky;
   top: 0;
   z-index: 10;
-  gap: 0.5rem;
-  flex-wrap: wrap;
+}
+
+.app-header-haut {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.75rem;
 }
 
 .header-titre {
@@ -68,11 +73,10 @@ body {
 }
 
 .logo-amicale {
-  height: 4.5rem;
+  height: 3.5rem;
   width: auto;
   border-radius: 6px;
   flex-shrink: 0;
-  margin-left: auto;
 }
 
 .badge {
