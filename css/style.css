@@ -460,6 +460,27 @@ button.secondaire {
   color: white;
 }
 
+/* Contact établi (passage vert) mais don pas encore saisi : on attire
+   l'œil tout de suite, pendant que l'agent est encore devant la maison. */
+.don-cell.a-remplir {
+  background: #ff8a00;
+  border-color: #ff8a00;
+  color: white;
+  font-weight: 800;
+  animation: don-a-remplir-pulse 1.1s ease-in-out infinite;
+}
+
+@keyframes don-a-remplir-pulse {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(255, 138, 0, 0.6);
+    transform: scale(1);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(255, 138, 0, 0);
+    transform: scale(1.06);
+  }
+}
+
 dialog {
   border: none;
   border-radius: 12px;

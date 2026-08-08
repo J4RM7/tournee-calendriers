@@ -340,6 +340,18 @@ function estAdresseValidee(adresse) {
   return statutValidationAdresse(adresse) === "validee";
 }
 
+function auMoinsUnPassageReussi(adresse) {
+  return [adresse.passage_1, adresse.passage_2, adresse.passage_3].some((p) => p === "passe");
+}
+
+// Contact établi mais rien de saisi côté don pour l'année en cours : c'est
+// le cas qu'on veut garder visible dans l'onglet "Repasses" (voir plus bas)
+// même si, passage-only, la maison serait déjà "validée".
+function donManquantMalgrePassage(adresse, dons) {
+  if (!auMoinsUnPassageReussi(adresse)) return false;
+  return !trouverDonPourAnnee(dons, new Date().getFullYear());
+}
+
 // Statut d'une rue entière, pour la couleur du pavé sur l'écran "toutes les
 // rues" : vierge (rien tenté), en cours (au moins un passage, pas encore
 // tout validé), validée (toutes les maisons validées).
@@ -691,7 +703,13 @@ ongletsTourneeEl.querySelectorAll(".onglet").forEach((btn) => {
 
 async function rendreOngletActuel() {
   if (ongletTourneeActuel === "repasses") {
-    await rendreOngletFiltre(ongletRepassesEl, (a) => statutValidationAdresse(a) === "attente");
+    // Une maison reste dans "Repasses" tant que le don n'est pas saisi,
+    // même si le passage vient de passer au vert — sinon elle disparaît de
+    // la liste avant que l'agent ait eu le temps de le remplir.
+    await rendreOngletFiltre(
+      ongletRepassesEl,
+      (a, dons) => statutValidationAdresse(a) === "attente" || donManquantMalgrePassage(a, dons)
+    );
   } else if (ongletTourneeActuel === "a-faire") {
     await rendreOngletFiltre(ongletAFaireEl, (a) => statutValidationAdresse(a) === "neutre");
   } else {
@@ -732,7 +750,12 @@ async function rendreOngletFiltre(container, predicate) {
   if (!tourneeActuelleId) return;
 
   const items = await obtenirAdressesTournee(tourneeActuelleId);
-  const filtres = items.filter(({ adresse }) => predicate(adresse));
+  const avecDons = [];
+  for (const item of items) {
+    avecDons.push({ ...item, dons: await getDonsByAdresse(item.adresse.id) });
+  }
+
+  const filtres = avecDons.filter(({ adresse, dons }) => predicate(adresse, dons));
   filtres.sort((a, b) => {
     const communeCmp = (a.commune.ordre ?? 0) - (b.commune.ordre ?? 0);
     if (communeCmp !== 0) return communeCmp;
@@ -747,8 +770,7 @@ async function rendreOngletFiltre(container, predicate) {
     return;
   }
 
-  for (const { adresse, rue, commune } of filtres) {
-    const dons = await getDonsByAdresse(adresse.id);
+  for (const { adresse, rue, commune, dons } of filtres) {
     container.appendChild(creerLigneAdresse(adresse, dons, rue, commune));
   }
 }
@@ -887,6 +909,10 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
 
   const anneeCourante = new Date().getFullYear();
   const donActif = trouverDonPourAnnee(dons, anneeCourante);
+  // Contact établi (au moins un passage vert) : sans ça, rien à enregistrer
+  // côté don. Un don déjà existant reste toujours modifiable/réinitialisable,
+  // même si les passages ont depuis été remis à "à faire".
+  const auMoinsUnPasse = auMoinsUnPassageReussi(adresse);
   const donBtn = document.createElement("button");
   donBtn.type = "button";
   if (donActif?.refuse) {
@@ -895,16 +921,17 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
   } else if (donActif) {
     donBtn.className = "don-cell don-donne";
     donBtn.textContent = formaterMontant(donActif.montant);
+  } else if (auMoinsUnPasse) {
+    // Contact réussi mais rien de saisi encore : on le met en évidence tout
+    // de suite pour que l'agent pense à remplir le don pendant qu'il est
+    // encore sur le pas de la porte.
+    donBtn.className = "don-cell a-remplir";
+    donBtn.textContent = "Don";
   } else {
     donBtn.className = "don-cell";
     donBtn.textContent = "Don";
   }
   donBtn.addEventListener("click", () => {
-    // On ne peut saisir un don que si le contact a été établi (au moins un
-    // passage vert) — sans ça, il n'y a rien à enregistrer. Un don déjà
-    // existant reste toujours modifiable/réinitialisable, même si les
-    // passages ont depuis été remis à "à faire".
-    const auMoinsUnPasse = [adresse.passage_1, adresse.passage_2, adresse.passage_3].some((p) => p === "passe");
     if (!donActif && !auMoinsUnPasse) {
       window.alert("Marque d'abord un passage réussi (case verte) avant de saisir un don.");
       return;
