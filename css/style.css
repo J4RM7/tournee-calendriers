@@ -484,26 +484,6 @@ button.secondaire {
   }
 }
 
-/* Don rempli, en attente de la confirmation explicite de l'agent avant de
-   quitter l'onglet "Repasses". */
-.pave-valider {
-  min-width: 4.75rem;
-  height: 2.1rem;
-  border-radius: 6px;
-  border: 1px solid var(--vert);
-  background: white;
-  color: var(--vert);
-  font-size: 0.78rem;
-  font-weight: 700;
-  padding: 0 0.5rem;
-  flex-shrink: 0;
-}
-
-.pave-valider:hover {
-  background: var(--vert);
-  color: white;
-}
-
 dialog {
   border: none;
   border-radius: 12px;
