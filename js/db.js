@@ -401,6 +401,14 @@ export async function deleteAdresse(id) {
   await remove("adresses", id);
 }
 
+// Efface le don d'une adresse (erreur de saisie, ou l'agent veut repartir
+// de zéro pour cette année) : contrairement à la remise à zéro de fin de
+// campagne, ceci supprime vraiment l'enregistrement, pas seulement les
+// passages.
+export async function supprimerDon(id) {
+  await remove("dons", id);
+}
+
 // État d'une maison au vu de ses 3 passages :
 // - "validee" : au moins un passage réussi, OU les 3 passages sont des
 //   absences (on a fait le tour, personne n'a jamais répondu).

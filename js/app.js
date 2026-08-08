@@ -13,6 +13,7 @@ import {
   updateAdressePassage,
   updateAdresseInfos,
   deleteAdresse,
+  supprimerDon,
   addAdresse,
   enregistrerDon,
   toucherAdresse,
@@ -133,6 +134,7 @@ const donMontantAutreInput = document.getElementById("don-montant-autre");
 const paveEspecesBtn = document.getElementById("pave-especes");
 const paveChequeBtn = document.getElementById("pave-cheque");
 const paveRecuBtn = document.getElementById("pave-recu");
+const donReinitialiserBtn = document.getElementById("don-reinitialiser");
 
 const dialogAdresse = document.getElementById("dialog-adresse");
 const formAdresse = document.getElementById("form-adresse");
@@ -173,6 +175,7 @@ let adresseEnEdition = null;
 let communeEnEdition = null;
 let communePourNouvelleRue = null;
 let refuseSelectionne = null; // null = pas encore choisi, false = a donné, true = a refusé
+let donExistantCourant = null; // le don de l'année en cours pour l'adresse ouverte, s'il existe
 let recuEnvoyeSelectionne = false;
 let montantSelectionne = null;
 let modePaiementSelectionne = null;
@@ -1282,6 +1285,8 @@ function ouvrirDialogDon(adresse, dons = []) {
   // vérifier ou le corriger), on réaffiche exactement ce qui a été
   // enregistré plutôt que de tout remettre à zéro.
   const donExistant = trouverDonPourAnnee(dons, new Date().getFullYear());
+  donExistantCourant = donExistant;
+  donReinitialiserBtn.hidden = !donExistant;
 
   definirChoixDon(donExistant ? donExistant.refuse : null);
 
@@ -1311,6 +1316,24 @@ function ouvrirDialogDon(adresse, dons = []) {
 }
 
 donAnnulerBtn.addEventListener("click", () => dialogDon.close());
+
+donReinitialiserBtn.addEventListener("click", async () => {
+  if (!donExistantCourant) return;
+
+  const confirme = window.confirm(
+    "Réinitialiser ce don ? Le pavé redeviendra vide pour cette maison, cette année. Cette action est irréversible."
+  );
+  if (!confirme) return;
+
+  const id = donExistantCourant.id;
+  await supprimerDon(id);
+  supprimerDeSupabase("dons", id);
+
+  adresseCourante = null;
+  donExistantCourant = null;
+  dialogDon.close();
+  rafraichirVueApp();
+});
 
 formDon.addEventListener("submit", async (event) => {
   // Le formulaire est en method="dialog" : sans preventDefault, la fenêtre
