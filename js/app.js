@@ -899,7 +899,18 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
     donBtn.className = "don-cell";
     donBtn.textContent = "Don";
   }
-  donBtn.addEventListener("click", () => ouvrirDialogDon(adresse, dons));
+  donBtn.addEventListener("click", () => {
+    // On ne peut saisir un don que si le contact a été établi (au moins un
+    // passage vert) — sans ça, il n'y a rien à enregistrer. Un don déjà
+    // existant reste toujours modifiable/réinitialisable, même si les
+    // passages ont depuis été remis à "à faire".
+    const auMoinsUnPasse = [adresse.passage_1, adresse.passage_2, adresse.passage_3].some((p) => p === "passe");
+    if (!donActif && !auMoinsUnPasse) {
+      window.alert("Marque d'abord un passage réussi (case verte) avant de saisir un don.");
+      return;
+    }
+    ouvrirDialogDon(adresse, dons);
+  });
 
   const ligneDon = document.createElement("div");
   ligneDon.className = "don-ligne";
