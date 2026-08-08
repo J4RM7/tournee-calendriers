@@ -96,7 +96,8 @@ create table adresses (
   maj_le timestamptz,
   created_at timestamptz not null default now(),
   ordre integer not null default 0,
-  saisie_confirmee boolean not null default false
+  saisie_confirmee boolean not null default false,
+  visite_confirmee boolean not null default false
 );
 
 create index adresses_rue_id_idx on adresses (rue_id);

@@ -362,6 +362,15 @@ function pretAValider(adresse, dons) {
   return !adresse.saisie_confirmee;
 }
 
+// Même principe que pretAValider, mais pour la sortie de l'onglet "A
+// faire" : dès qu'un passage est coché (peu importe lequel ni son état),
+// la maison reste visible avec un bouton "Valider" tant que l'agent n'a
+// pas explicitement confirmé, au lieu de basculer aussitôt vers "Repasses".
+function pretAConfirmerDepartAFaire(adresse) {
+  if (statutValidationAdresse(adresse) === "neutre") return false;
+  return !adresse.visite_confirmee;
+}
+
 // Statut d'une rue entière, pour la couleur du pavé sur l'écran "toutes les
 // rues" : vierge (rien tenté), en cours (au moins un passage, pas encore
 // tout validé), validée (toutes les maisons validées).
@@ -722,7 +731,14 @@ async function rendreOngletActuel() {
         statutValidationAdresse(a) === "attente" || donManquantMalgrePassage(a, dons) || pretAValider(a, dons)
     );
   } else if (ongletTourneeActuel === "a-faire") {
-    await rendreOngletFiltre(ongletAFaireEl, (a) => statutValidationAdresse(a) === "neutre");
+    // Une maison reste dans "A faire" tant qu'elle n'a jamais été touchée,
+    // ou qu'elle vient de l'être mais que l'agent n'a pas encore confirmé
+    // — sinon elle basculerait aussitôt vers "Repasses" sans qu'on ait eu
+    // le temps de le remarquer.
+    await rendreOngletFiltre(
+      ongletAFaireEl,
+      (a) => statutValidationAdresse(a) === "neutre" || pretAConfirmerDepartAFaire(a)
+    );
   } else {
     await rendreOngletToutes();
   }
@@ -908,16 +924,20 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
       const nouvelEtat = PROCHAIN_ETAT_PASSAGE[etat];
       const adresseMaj = await updateAdressePassage(adresse.id, n, nouvelEtat);
       // Un passage qui change invalide une éventuelle validation précédente
-      // (la situation a changé depuis, il faut la revalider).
-      if (adresse.saisie_confirmee) {
-        await updateAdresseInfos(adresse.id, { saisie_confirmee: false });
+      // (la situation a changé depuis, il faut la revalider). Si les 3
+      // passages sont redevenus "à faire", on repart aussi à zéro côté
+      // confirmation de sortie de "A faire".
+      const champsMaj = { saisie_confirmee: false };
+      if (statutValidationAdresse(adresseMaj) === "neutre") {
+        champsMaj.visite_confirmee = false;
       }
+      await updateAdresseInfos(adresse.id, champsMaj);
       pousserVersSupabase("adresses", {
         id: adresse.id,
         rue_id: adresse.rue_id,
         [`passage_${n}`]: nouvelEtat,
         maj_le: adresseMaj.maj_le,
-        saisie_confirmee: false,
+        ...champsMaj,
       });
       rafraichirVueApp();
     });
@@ -960,10 +980,25 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
   ligneDon.className = "don-ligne";
   ligneDon.appendChild(donBtn);
 
-  // Don rempli mais pas encore validé par l'agent : on laisse la maison
-  // visible (avec ce bouton) le temps qu'il relise, plutôt que de la faire
-  // disparaître de "Repasses" dès l'enregistrement du don.
-  if (pretAValider(adresse, dons)) {
+  // Un seul bouton de validation à la fois, dans l'ordre naturel du
+  // parcours : d'abord confirmer qu'on a bien vu le passage coché (sort de
+  // "A faire"), ensuite confirmer que le don est bon (sort de "Repasses").
+  if (pretAConfirmerDepartAFaire(adresse)) {
+    const validerVisiteBtn = document.createElement("button");
+    validerVisiteBtn.type = "button";
+    validerVisiteBtn.className = "pave-valider";
+    validerVisiteBtn.textContent = "✓ Valider";
+    validerVisiteBtn.title = "Confirmer avoir pris en compte le passage pour cette maison";
+    validerVisiteBtn.addEventListener("click", async () => {
+      await updateAdresseInfos(adresse.id, { visite_confirmee: true });
+      pousserVersSupabase("adresses", { id: adresse.id, rue_id: adresse.rue_id, visite_confirmee: true });
+      rafraichirVueApp();
+    });
+    ligneDon.appendChild(validerVisiteBtn);
+  } else if (pretAValider(adresse, dons)) {
+    // Don rempli mais pas encore validé par l'agent : on laisse la maison
+    // visible (avec ce bouton) le temps qu'il relise, plutôt que de la
+    // faire disparaître de "Repasses" dès l'enregistrement du don.
     const validerBtn = document.createElement("button");
     validerBtn.type = "button";
     validerBtn.className = "pave-valider";
