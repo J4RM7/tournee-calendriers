@@ -172,7 +172,7 @@ let adresseCourante = null;
 let adresseEnEdition = null;
 let communeEnEdition = null;
 let communePourNouvelleRue = null;
-let refuseSelectionne = false;
+let refuseSelectionne = null; // null = pas encore choisi, false = a donné, true = a refusé
 let recuEnvoyeSelectionne = false;
 let montantSelectionne = null;
 let modePaiementSelectionne = null;
@@ -1152,16 +1152,23 @@ formNouvelleRue.addEventListener("submit", async () => {
 });
 
 // --- Formulaire don -------------------------------------------------------
+// refuse : null (rien choisi), false (a donné) ou true (a refusé). Les deux
+// pavés sont désélectionnables — un second clic sur le pavé actif revient à
+// "rien choisi", pour ne pas présélectionner "A donné" par défaut.
 function definirChoixDon(refuse) {
   refuseSelectionne = refuse;
-  donChoixDonneBtn.classList.toggle("actif", !refuse);
-  donChoixRefuseBtn.classList.toggle("actif", refuse);
-  donChampsMontantEl.hidden = refuse;
-  paveRecuBtn.hidden = refuse;
+  donChoixDonneBtn.classList.toggle("actif", refuse === false);
+  donChoixRefuseBtn.classList.toggle("actif", refuse === true);
+  donChampsMontantEl.hidden = refuse !== false;
+  paveRecuBtn.hidden = refuse !== false;
 }
 
-donChoixDonneBtn.addEventListener("click", () => definirChoixDon(false));
-donChoixRefuseBtn.addEventListener("click", () => definirChoixDon(true));
+donChoixDonneBtn.addEventListener("click", () => {
+  definirChoixDon(refuseSelectionne === false ? null : false);
+});
+donChoixRefuseBtn.addEventListener("click", () => {
+  definirChoixDon(refuseSelectionne === true ? null : true);
+});
 
 // Pavés de montant : soit un montant prédéfini, soit "Autre" qui révèle un
 // champ libre. Un seul pavé actif (vert) à la fois.
@@ -1276,7 +1283,7 @@ function ouvrirDialogDon(adresse, dons = []) {
   // enregistré plutôt que de tout remettre à zéro.
   const donExistant = trouverDonPourAnnee(dons, new Date().getFullYear());
 
-  definirChoixDon(donExistant?.refuse ?? false);
+  definirChoixDon(donExistant ? donExistant.refuse : null);
 
   if (donExistant && !donExistant.refuse) {
     if (MONTANTS_PREDEFINIS.includes(donExistant.montant)) {
@@ -1310,6 +1317,12 @@ formDon.addEventListener("submit", async (event) => {
   // se fermerait automatiquement même si la validation ci-dessous échoue.
   event.preventDefault();
   if (!adresseCourante) return;
+
+  if (refuseSelectionne === null) {
+    donMessageEl.textContent = "Précise si la personne a donné ou refusé avant d'enregistrer.";
+    donMessageEl.className = "connexion-message erreur";
+    return;
+  }
 
   const montantFinal = refuseSelectionne
     ? 0
