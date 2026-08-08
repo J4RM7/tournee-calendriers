@@ -384,11 +384,14 @@ button.secondaire {
   justify-content: flex-end;
   gap: 0.4rem;
   flex-shrink: 0;
+  max-width: 100%;
 }
 
 .don-ligne {
   display: flex;
   align-items: center;
+  flex-wrap: wrap;
+  justify-content: flex-end;
   gap: 0.4rem;
 }
 
