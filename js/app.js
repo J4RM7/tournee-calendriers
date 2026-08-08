@@ -352,6 +352,16 @@ function donManquantMalgrePassage(adresse, dons) {
   return !trouverDonPourAnnee(dons, new Date().getFullYear());
 }
 
+// Contact établi et don rempli, mais l'agent n'a pas encore cliqué sur
+// "Valider" : la maison reste affichée (avec le bouton de validation) tant
+// que ce n'est pas fait, pour laisser un temps de relecture avant qu'elle
+// ne quitte "Repasses".
+function pretAValider(adresse, dons) {
+  if (!auMoinsUnPassageReussi(adresse)) return false;
+  if (!trouverDonPourAnnee(dons, new Date().getFullYear())) return false;
+  return !adresse.saisie_confirmee;
+}
+
 // Statut d'une rue entière, pour la couleur du pavé sur l'écran "toutes les
 // rues" : vierge (rien tenté), en cours (au moins un passage, pas encore
 // tout validé), validée (toutes les maisons validées).
@@ -703,12 +713,13 @@ ongletsTourneeEl.querySelectorAll(".onglet").forEach((btn) => {
 
 async function rendreOngletActuel() {
   if (ongletTourneeActuel === "repasses") {
-    // Une maison reste dans "Repasses" tant que le don n'est pas saisi,
-    // même si le passage vient de passer au vert — sinon elle disparaît de
-    // la liste avant que l'agent ait eu le temps de le remplir.
+    // Une maison reste dans "Repasses" tant que le don n'est pas saisi
+    // (passage vient de passer au vert) OU tant qu'il est saisi mais pas
+    // encore validé par l'agent — sinon elle disparaît de la liste trop tôt.
     await rendreOngletFiltre(
       ongletRepassesEl,
-      (a, dons) => statutValidationAdresse(a) === "attente" || donManquantMalgrePassage(a, dons)
+      (a, dons) =>
+        statutValidationAdresse(a) === "attente" || donManquantMalgrePassage(a, dons) || pretAValider(a, dons)
     );
   } else if (ongletTourneeActuel === "a-faire") {
     await rendreOngletFiltre(ongletAFaireEl, (a) => statutValidationAdresse(a) === "neutre");
@@ -896,11 +907,17 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
     btn.addEventListener("click", async () => {
       const nouvelEtat = PROCHAIN_ETAT_PASSAGE[etat];
       const adresseMaj = await updateAdressePassage(adresse.id, n, nouvelEtat);
+      // Un passage qui change invalide une éventuelle validation précédente
+      // (la situation a changé depuis, il faut la revalider).
+      if (adresse.saisie_confirmee) {
+        await updateAdresseInfos(adresse.id, { saisie_confirmee: false });
+      }
       pousserVersSupabase("adresses", {
         id: adresse.id,
         rue_id: adresse.rue_id,
         [`passage_${n}`]: nouvelEtat,
         maj_le: adresseMaj.maj_le,
+        saisie_confirmee: false,
       });
       rafraichirVueApp();
     });
@@ -942,6 +959,23 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
   const ligneDon = document.createElement("div");
   ligneDon.className = "don-ligne";
   ligneDon.appendChild(donBtn);
+
+  // Don rempli mais pas encore validé par l'agent : on laisse la maison
+  // visible (avec ce bouton) le temps qu'il relise, plutôt que de la faire
+  // disparaître de "Repasses" dès l'enregistrement du don.
+  if (pretAValider(adresse, dons)) {
+    const validerBtn = document.createElement("button");
+    validerBtn.type = "button";
+    validerBtn.className = "pave-valider";
+    validerBtn.textContent = "✓ Valider";
+    validerBtn.title = "Confirmer que cette maison est terminée pour l'année";
+    validerBtn.addEventListener("click", async () => {
+      await updateAdresseInfos(adresse.id, { saisie_confirmee: true });
+      pousserVersSupabase("adresses", { id: adresse.id, rue_id: adresse.rue_id, saisie_confirmee: true });
+      rafraichirVueApp();
+    });
+    ligneDon.appendChild(validerBtn);
+  }
 
   // Beaucoup de donateurs redemandent "j'ai donné combien l'an dernier ?" :
   // ce pavé n'est qu'une info (pas cliquable), affiché sur toutes les lignes
@@ -1366,6 +1400,8 @@ donReinitialiserBtn.addEventListener("click", async () => {
   const id = donExistantCourant.id;
   await supprimerDon(id);
   supprimerDeSupabase("dons", id);
+  await updateAdresseInfos(adresseCourante.id, { saisie_confirmee: false });
+  pousserVersSupabase("adresses", { id: adresseCourante.id, rue_id: adresseCourante.rue_id, saisie_confirmee: false });
 
   adresseCourante = null;
   donExistantCourant = null;
@@ -1418,8 +1454,16 @@ formDon.addEventListener("submit", async (event) => {
   });
   pousserVersSupabase("dons", don);
 
+  // Le don vient de changer (nouveau ou corrigé) : une validation précédente
+  // ne tient plus, il faut la reconfirmer.
+  await updateAdresseInfos(adresseCourante.id, { saisie_confirmee: false });
   const adresseMaj = await toucherAdresse(adresseCourante.id);
-  pousserVersSupabase("adresses", { id: adresseMaj.id, rue_id: adresseMaj.rue_id, maj_le: adresseMaj.maj_le });
+  pousserVersSupabase("adresses", {
+    id: adresseMaj.id,
+    rue_id: adresseMaj.rue_id,
+    maj_le: adresseMaj.maj_le,
+    saisie_confirmee: false,
+  });
 
   adresseCourante = null;
   dialogDon.close();
