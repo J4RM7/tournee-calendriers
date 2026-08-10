@@ -7,7 +7,7 @@
 // Hiérarchie : tournée -> communes -> rues -> adresses -> dons.
 
 const DB_NAME = "tournee-calendriers";
-const DB_VERSION = 9;
+const DB_VERSION = 10;
 
 // Identifiants "démo" utilisés tant qu'on n'est pas connecté à un vrai
 // compte (mode démo hors-ligne, sans backend).
@@ -80,6 +80,14 @@ function openDB() {
       // se déclenche plus qu'au moment où le don est rempli (voir
       // saisie_confirmee), pas dès qu'un passage est coché.
       if (event.oldVersion < 9) {
+        for (const nom of ["tournees", "communes", "rues", "adresses", "dons"]) {
+          if (db.objectStoreNames.contains(nom)) db.deleteObjectStore(nom);
+        }
+      }
+      // v10 retire adresses.saisie_confirmee : plus de fenêtre de
+      // confirmation après la saisie d'un don, la maison est considérée
+      // traitée dès que le passage et le don sont remplis.
+      if (event.oldVersion < 10) {
         for (const nom of ["tournees", "communes", "rues", "adresses", "dons"]) {
           if (db.objectStoreNames.contains(nom)) db.deleteObjectStore(nom);
         }
@@ -216,7 +224,6 @@ export async function seedIfEmpty() {
       maj_le: a.maj_le,
       created_at: a.created_at,
       ordre: a.ordre,
-      saisie_confirmee: false,
     });
   }
 
@@ -379,7 +386,6 @@ export async function addAdresse(champs) {
     maj_le: null,
     created_at: new Date().toISOString(),
     ordre: champs.rue_id ? await prochainOrdre(champs.rue_id) : 0,
-    saisie_confirmee: false,
     ...champs,
   };
   await put("adresses", record);

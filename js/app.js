@@ -898,15 +898,11 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
     btn.addEventListener("click", async () => {
       const nouvelEtat = PROCHAIN_ETAT_PASSAGE[etat];
       const adresseMaj = await updateAdressePassage(adresse.id, n, nouvelEtat);
-      // Un passage qui change invalide une éventuelle validation précédente
-      // (la situation a changé depuis, il faut la revalider).
-      await updateAdresseInfos(adresse.id, { saisie_confirmee: false });
       pousserVersSupabase("adresses", {
         id: adresse.id,
         rue_id: adresse.rue_id,
         [`passage_${n}`]: nouvelEtat,
         maj_le: adresseMaj.maj_le,
-        saisie_confirmee: false,
       });
       rafraichirVueApp();
     });
@@ -1372,8 +1368,6 @@ donReinitialiserBtn.addEventListener("click", async () => {
   const id = donExistantCourant.id;
   await supprimerDon(id);
   supprimerDeSupabase("dons", id);
-  await updateAdresseInfos(adresseCourante.id, { saisie_confirmee: false });
-  pousserVersSupabase("adresses", { id: adresseCourante.id, rue_id: adresseCourante.rue_id, saisie_confirmee: false });
 
   adresseCourante = null;
   donExistantCourant = null;
@@ -1429,19 +1423,8 @@ formDon.addEventListener("submit", async (event) => {
   const adresseMaj = await toucherAdresse(adresseCourante.id);
   pousserVersSupabase("adresses", { id: adresseMaj.id, rue_id: adresseMaj.rue_id, maj_le: adresseMaj.maj_le });
 
-  const adresseId = adresseCourante.id;
-  const rueId = adresseCourante.rue_id;
   adresseCourante = null;
   dialogDon.close();
-
-  // Le don vient d'être rempli (donné ou refusé) : on demande tout de suite
-  // si la maison peut être considérée comme terminée pour l'année, plutôt
-  // que d'afficher un bouton en permanence dans la ligne d'adresse. Si
-  // "Annuler", elle reste visible dans "Repasses" et la question sera
-  // reposée à la prochaine sauvegarde du don.
-  const maisonTerminee = window.confirm("Don enregistré. Marquer cette maison comme terminée pour l'année ?");
-  await updateAdresseInfos(adresseId, { saisie_confirmee: maisonTerminee });
-  pousserVersSupabase("adresses", { id: adresseId, rue_id: rueId, saisie_confirmee: maisonTerminee });
 
   rafraichirVueApp();
 });

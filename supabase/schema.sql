@@ -95,8 +95,7 @@ create table adresses (
   notes text,
   maj_le timestamptz,
   created_at timestamptz not null default now(),
-  ordre integer not null default 0,
-  saisie_confirmee boolean not null default false
+  ordre integer not null default 0
 );
 
 create index adresses_rue_id_idx on adresses (rue_id);
