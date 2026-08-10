@@ -352,17 +352,6 @@ function donManquantMalgrePassage(adresse, dons) {
   return !trouverDonPourAnnee(dons, new Date().getFullYear());
 }
 
-// Contact établi et don rempli, mais l'agent n'a pas encore confirmé (voir
-// la question posée juste après l'enregistrement du don, dans
-// formDon.submit) : la maison reste affichée dans "Repasses" tant que ce
-// n'est pas fait, pour laisser un temps de relecture avant qu'elle
-// disparaisse.
-function pretAValider(adresse, dons) {
-  if (!auMoinsUnPassageReussi(adresse)) return false;
-  if (!trouverDonPourAnnee(dons, new Date().getFullYear())) return false;
-  return !adresse.saisie_confirmee;
-}
-
 // Statut d'une rue entière, pour la couleur du pavé sur l'écran "toutes les
 // rues" : vierge (rien tenté), en cours (au moins un passage, pas encore
 // tout validé), validée (toutes les maisons validées).
@@ -714,13 +703,14 @@ ongletsTourneeEl.querySelectorAll(".onglet").forEach((btn) => {
 
 async function rendreOngletActuel() {
   if (ongletTourneeActuel === "repasses") {
-    // Une maison reste dans "Repasses" tant que le don n'est pas saisi
-    // (passage vient de passer au vert) OU tant qu'il est saisi mais pas
-    // encore validé par l'agent — sinon elle disparaît de la liste trop tôt.
+    // Une maison reste dans "Repasses" tant qu'elle n'est pas validée
+    // (passage en attente) ou que le passage est bon mais le don pas encore
+    // saisi. Une maison déjà validée (passage + don) n'a plus rien à faire
+    // ici, même si l'agent n'a pas encore répondu "terminée" au moment de
+    // l'enregistrement du don.
     await rendreOngletFiltre(
       ongletRepassesEl,
-      (a, dons) =>
-        statutValidationAdresse(a) === "attente" || donManquantMalgrePassage(a, dons) || pretAValider(a, dons)
+      (a, dons) => statutValidationAdresse(a) === "attente" || donManquantMalgrePassage(a, dons)
     );
   } else if (ongletTourneeActuel === "a-faire") {
     await rendreOngletFiltre(ongletAFaireEl, (a) => statutValidationAdresse(a) === "neutre");

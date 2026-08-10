@@ -379,20 +379,21 @@ button.secondaire {
 .adresse-droite {
   display: flex;
   flex-direction: row;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-end;
   gap: 0.4rem;
-  flex-shrink: 0;
   max-width: 100%;
+  min-width: 0;
 }
 
 .don-ligne {
   display: flex;
   align-items: center;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   justify-content: flex-end;
   gap: 0.4rem;
+  min-width: 0;
 }
 
 .pave-annee-precedente {
@@ -402,7 +403,11 @@ button.secondaire {
   border: 1px solid var(--bordure);
   border-radius: 6px;
   padding: 0.3rem 0.5rem;
-  white-space: nowrap;
+  white-space: normal;
+  flex-shrink: 1;
+  min-width: 0;
+  text-align: center;
+  line-height: 1.15;
 }
 
 .passages {
