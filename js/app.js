@@ -713,7 +713,13 @@ async function rendreOngletActuel() {
       (a, dons) => statutValidationAdresse(a) === "attente" || donManquantMalgrePassage(a, dons)
     );
   } else if (ongletTourneeActuel === "a-faire") {
-    await rendreOngletFiltre(ongletAFaireEl, (a) => statutValidationAdresse(a) === "neutre");
+    // Une maison reste dans "A faire" tant que le don n'est pas rempli,
+    // même après avoir coché un passage : sinon la ligne disparaît de cet
+    // onglet avant d'avoir eu le temps de saisir le don.
+    await rendreOngletFiltre(
+      ongletAFaireEl,
+      (a, dons) => statutValidationAdresse(a) === "neutre" || donManquantMalgrePassage(a, dons)
+    );
   } else {
     await rendreOngletToutes();
   }
@@ -867,7 +873,13 @@ async function rendreRueDetail() {
 
 function creerLigneAdresse(adresse, dons, rue, commune) {
   const li = document.createElement("li");
-  li.className = `adresse-item statut-${statutValidationAdresse(adresse)}`;
+  // Le fond de la carte affine le statut passage-only : une maison "validée"
+  // dont le don n'est pas encore saisi garde une couleur à part (orange),
+  // pour ne pas avoir l'air terminée alors qu'il reste à repasser.
+  const statutBase = statutValidationAdresse(adresse);
+  const statutAffiche =
+    statutBase === "validee" && donManquantMalgrePassage(adresse, dons) ? "don-manquant" : statutBase;
+  li.className = `adresse-item statut-${statutAffiche}`;
   li.dataset.id = adresse.id;
 
   const info = document.createElement("div");

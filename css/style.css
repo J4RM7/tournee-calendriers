@@ -324,6 +324,11 @@ main,
   border-color: #f5dfa8;
 }
 
+.adresse-item.statut-don-manquant {
+  background: #fff1e3;
+  border-color: #ffc98a;
+}
+
 .adresse-info {
   min-width: 0;
   flex: 1 1 auto;

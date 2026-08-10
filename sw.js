@@ -1,7 +1,7 @@
 // Service worker minimal : ne s'occupe que de l'"app shell" (les fichiers
 // statiques HTML/CSS/JS/icônes), jamais des données. Les données offline
 // sont gérées séparément par IndexedDB (voir js/db.js).
-const CACHE_NAME = "tc-shell-v40";
+const CACHE_NAME = "tc-shell-v43";
 
 const APP_SHELL = [
   "/",
@@ -22,7 +22,13 @@ const APP_SHELL = [
 
 self.addEventListener("install", (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(APP_SHELL))
+    caches.open(CACHE_NAME).then((cache) =>
+      // cache.addAll() passe par le cache HTTP normal du navigateur, qui peut
+      // renvoyer une version périmée d'un fichier même si CACHE_NAME a
+      // changé. { cache: "reload" } force une vraie requête réseau pour
+      // chaque fichier de l'app shell.
+      Promise.all(APP_SHELL.map((url) => fetch(url, { cache: "reload" }).then((r) => cache.put(url, r))))
+    )
   );
   self.skipWaiting();
 });
