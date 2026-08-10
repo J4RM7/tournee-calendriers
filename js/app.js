@@ -20,6 +20,9 @@ import {
   getDonsByAdresse,
   trouverDonPourAnnee,
   statutValidationAdresse,
+  auMoinsUnPassageReussi,
+  donManquantMalgrePassage,
+  estAdresseValidee,
   reordonnerAdresses,
   DEMO_TOURNEE_ID,
   DEMO_AGENT_ID,
@@ -334,30 +337,13 @@ btnDeconnexion.addEventListener("click", handleDeconnexion);
 btnDeconnexionAccueil.addEventListener("click", handleDeconnexion);
 
 // --- Écran "liste des rues" (regroupées par commune) -----------------
-// Seules les maisons validées comptent dans les courbes de progression
-// (voir statutValidationAdresse dans db.js pour la définition de "validée").
-function estAdresseValidee(adresse) {
-  return statutValidationAdresse(adresse) === "validee";
-}
-
-function auMoinsUnPassageReussi(adresse) {
-  return [adresse.passage_1, adresse.passage_2, adresse.passage_3].some((p) => p === "passe");
-}
-
-// Contact établi mais rien de saisi côté don pour l'année en cours : c'est
-// le cas qu'on veut garder visible dans l'onglet "Repasses" (voir plus bas)
-// même si, passage-only, la maison serait déjà "validée".
-function donManquantMalgrePassage(adresse, dons) {
-  if (!auMoinsUnPassageReussi(adresse)) return false;
-  return !trouverDonPourAnnee(dons, new Date().getFullYear());
-}
-
 // Statut d'une rue entière, pour la couleur du pavé sur l'écran "toutes les
 // rues" : vierge (rien tenté), en cours (au moins un passage, pas encore
-// tout validé), validée (toutes les maisons validées).
-function statutRue(adresses) {
+// tout validé), validée (toutes les maisons validées, don compris — voir
+// estAdresseValidee dans db.js). donsParAdresse : Map(adresse.id -> dons[]).
+function statutRue(adresses, donsParAdresse) {
   if (adresses.length === 0) return "vierge";
-  if (adresses.every(estAdresseValidee)) return "valide";
+  if (adresses.every((a) => estAdresseValidee(a, donsParAdresse.get(a.id) || []))) return "valide";
   const auMoinsUnPassage = adresses.some((a) =>
     [a.passage_1, a.passage_2, a.passage_3].some((p) => p !== "a_faire")
   );
@@ -438,9 +424,9 @@ async function calculerStatistiquesTournee(tourneeId) {
   let maisonsValidees = 0;
 
   for (const { adresse } of items) {
-    if (estAdresseValidee(adresse)) maisonsValidees++;
-
     const dons = await getDonsByAdresse(adresse.id);
+    if (estAdresseValidee(adresse, dons)) maisonsValidees++;
+
     const donCourant = trouverDonPourAnnee(dons, anneeCourante);
     const donPrecedent = trouverDonPourAnnee(dons, anneeCourante - 1);
 
@@ -800,10 +786,12 @@ async function creerBlocCommune(commune) {
   for (const rue of rues) {
     const adresses = await getAdressesByRue(rue.id);
     const total = adresses.length;
-    const traitees = adresses.filter(estAdresseValidee).length;
+    const donsParAdresse = new Map();
+    for (const adresse of adresses) donsParAdresse.set(adresse.id, await getDonsByAdresse(adresse.id));
+    const traitees = adresses.filter((a) => estAdresseValidee(a, donsParAdresse.get(a.id))).length;
 
     const li = document.createElement("li");
-    li.className = `rue-carte statut-${statutRue(adresses)}`;
+    li.className = `rue-carte statut-${statutRue(adresses, donsParAdresse)}`;
     li.innerHTML = `
       <span class="rue-carte-nom">${rue.nom}</span>
       <span class="rue-carte-stats">${formaterCompteur(traitees, total)}</span>
@@ -852,8 +840,11 @@ async function rendreRueDetail() {
   const adresses = await getAdressesByRue(rueActuelleId);
   adresses.sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
 
+  const donsParAdresse = new Map();
+  for (const adresse of adresses) donsParAdresse.set(adresse.id, await getDonsByAdresse(adresse.id));
+
   const total = adresses.length;
-  const traitees = adresses.filter(estAdresseValidee).length;
+  const traitees = adresses.filter((a) => estAdresseValidee(a, donsParAdresse.get(a.id))).length;
   rueDetailCompteurEl.textContent = formaterCompteur(traitees, total);
   rueDetailProgressEl.style.width = total ? `${Math.round((traitees / total) * 100)}%` : "0%";
   btnReorganiser.hidden = total < 2;
@@ -866,8 +857,7 @@ async function rendreRueDetail() {
     return;
   }
   for (const adresse of adresses) {
-    const dons = await getDonsByAdresse(adresse.id);
-    rueDetailListeEl.appendChild(creerLigneAdresse(adresse, dons, rue, commune));
+    rueDetailListeEl.appendChild(creerLigneAdresse(adresse, donsParAdresse.get(adresse.id), rue, commune));
   }
 }
 

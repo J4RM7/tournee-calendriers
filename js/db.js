@@ -465,3 +465,24 @@ export function trouverDonPourAnnee(dons, annee) {
   const donsAnnee = dons.filter((d) => new Date(d.date).getFullYear() === annee);
   return donsAnnee.find((d) => d.refuse) || donsAnnee.find((d) => d.montant > 0) || null;
 }
+
+export function auMoinsUnPassageReussi(adresse) {
+  return [adresse.passage_1, adresse.passage_2, adresse.passage_3].some((p) => p === "passe");
+}
+
+// Contact établi (au moins un passage réussi) mais rien de saisi côté don
+// pour l'année en cours : la maison est "validee" au sens passage seul,
+// mais il reste quelque chose à faire (voir estAdresseValidee ci-dessous,
+// qui exclut ce cas des courbes de progression).
+export function donManquantMalgrePassage(adresse, dons) {
+  if (!auMoinsUnPassageReussi(adresse)) return false;
+  return !trouverDonPourAnnee(dons, new Date().getFullYear());
+}
+
+// Une maison ne compte comme "traitée" dans les courbes de progression que
+// si elle est validée au sens passage ET que le don n'est pas manquant —
+// sinon une maison au fond orange (don pas encore saisi) compterait comme
+// terminée dans les statistiques, ce qui serait trompeur.
+export function estAdresseValidee(adresse, dons) {
+  return statutValidationAdresse(adresse) === "validee" && !donManquantMalgrePassage(adresse, dons);
+}

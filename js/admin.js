@@ -3,17 +3,13 @@
 // écrans nécessitent d'être en ligne — pas de cache hors-ligne ici, ce
 // n'est pas ce dont un admin a besoin sur le terrain.
 
-import { statutValidationAdresse } from "./db.js";
-
-function estAdresseValidee(adresse) {
-  return statutValidationAdresse(adresse) === "validee";
-}
+import { estAdresseValidee } from "./db.js";
 
 export async function listerTournees(supabase) {
   const { data, error } = await supabase
     .from("tournees")
     .select(
-      "*, tournee_agents(agents(id, nom, prenom)), communes(rues(adresses(id, passage_1, passage_2, passage_3)))"
+      "*, tournee_agents(agents(id, nom, prenom)), communes(rues(adresses(id, passage_1, passage_2, passage_3, dons(montant, refuse, date))))"
     )
     .order("numero");
 
@@ -21,7 +17,7 @@ export async function listerTournees(supabase) {
 
   return data.map((t) => {
     const adresses = (t.communes || []).flatMap((c) => (c.rues || []).flatMap((r) => r.adresses || []));
-    const traitees = adresses.filter(estAdresseValidee).length;
+    const traitees = adresses.filter((a) => estAdresseValidee(a, a.dons || [])).length;
     return {
       id: t.id,
       numero: t.numero,
