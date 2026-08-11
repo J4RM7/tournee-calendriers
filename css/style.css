@@ -241,21 +241,21 @@ main,
 }
 
 .rue-carte.statut-en-cours {
-  background: #fff4e0;
-  border-color: #f5dfa8;
+  background: #ffdf9e;
+  border-color: #e0a83d;
 }
 
 .rue-carte.statut-en-cours:hover {
-  background: #ffedcc;
+  background: #ffd37f;
 }
 
 .rue-carte.statut-valide {
-  background: #e7f6ec;
-  border-color: #bfe3c9;
+  background: #c3e6c9;
+  border-color: #7cb885;
 }
 
 .rue-carte.statut-valide:hover {
-  background: #d9f0e1;
+  background: #a9d9b1;
 }
 
 .rue-carte-nom {
@@ -340,14 +340,10 @@ main,
   border-color: #7cb885;
 }
 
-.adresse-item.statut-attente {
+.adresse-item.statut-attente,
+.adresse-item.statut-don-manquant {
   background: #ffdf9e;
   border-color: #e0a83d;
-}
-
-.adresse-item.statut-don-manquant {
-  background: #ffc785;
-  border-color: #e8891a;
 }
 
 .adresse-info {
