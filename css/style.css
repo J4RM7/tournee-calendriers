@@ -26,7 +26,7 @@ body {
   display: flex;
   flex-direction: column;
   gap: 0.4rem;
-  padding: 0.6rem 1rem;
+  padding: calc(0.9rem + env(safe-area-inset-top)) 1rem 0.6rem;
   background: var(--rouge);
   color: white;
   position: sticky;
@@ -48,9 +48,21 @@ body {
   min-width: 0;
 }
 
-.app-header h1 {
-  font-size: 1.1rem;
+.header-amicale {
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.header-nom-app {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Display", "Segoe UI", Roboto, sans-serif;
+  font-size: 1.9rem;
+  font-weight: 700;
+  letter-spacing: -0.02em;
   margin: 0;
+  line-height: 1.1;
 }
 
 .tournee-info {
@@ -334,8 +346,8 @@ main,
 }
 
 .adresse-item.statut-don-manquant {
-  background: #ffddb0;
-  border-color: #f5a94d;
+  background: #ffb35c;
+  border-color: #d9770a;
 }
 
 .adresse-info {
