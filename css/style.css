@@ -79,6 +79,15 @@ body {
   flex-shrink: 0;
 }
 
+.logo-amicale-accueil {
+  display: block;
+  width: 60%;
+  max-width: 220px;
+  height: auto;
+  margin: 2.5rem auto 0;
+  border-radius: 12px;
+}
+
 .badge {
   font-size: 0.75rem;
   padding: 0.25rem 0.6rem;
