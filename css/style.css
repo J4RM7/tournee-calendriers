@@ -81,8 +81,8 @@ body {
 
 .logo-amicale-accueil {
   display: block;
-  width: 60%;
-  max-width: 220px;
+  width: 30%;
+  max-width: 110px;
   height: auto;
   margin: 2.5rem auto 0;
   border-radius: 12px;
@@ -324,8 +324,8 @@ main,
 }
 
 .adresse-item.statut-validee {
-  background: #e7f6ec;
-  border-color: #bfe3c9;
+  background: #c3e6c9;
+  border-color: #7cb885;
 }
 
 .adresse-item.statut-attente {
@@ -334,8 +334,8 @@ main,
 }
 
 .adresse-item.statut-don-manquant {
-  background: #fff1e3;
-  border-color: #ffc98a;
+  background: #ffddb0;
+  border-color: #f5a94d;
 }
 
 .adresse-info {
