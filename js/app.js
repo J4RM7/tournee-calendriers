@@ -28,7 +28,7 @@ import {
   DEMO_AGENT_ID,
 } from "./db.js";
 import { getSupabaseClient } from "./supabaseClient.js";
-import { exporterPDF, exporterExcel, reinitialiserCampagne } from "./export.js";
+import { exporterPDF, exporterExcel } from "./export.js";
 import {
   getSession,
   connecterAvecMotDePasse,
@@ -37,7 +37,6 @@ import {
   getAgentPourUtilisateur,
 } from "./auth.js";
 import { synchroniserDonneesAgent } from "./sync.js";
-import { listerTournees, listerAgents, creerTournee, affecterAgent, retirerAgent } from "./admin.js";
 
 const PROCHAIN_ETAT_PASSAGE = { a_faire: "passe", passe: "absent", absent: "a_faire" };
 const LABEL_PASSAGE = { a_faire: "à faire", passe: "passé", absent: "absent" };
@@ -112,16 +111,6 @@ const connexionMessageEl = document.getElementById("connexion-message");
 const btnModeDemo = document.getElementById("btn-mode-demo");
 
 const ecranAdminEl = document.getElementById("ecran-admin");
-const formNouvelleTournee = document.getElementById("form-nouvelle-tournee");
-const adminNumeroInput = document.getElementById("admin-numero");
-const adminCommuneInput = document.getElementById("admin-commune");
-const adminRueInput = document.getElementById("admin-rue");
-const adminMessageEl = document.getElementById("admin-message");
-const adminListeTourneesEl = document.getElementById("admin-liste-tournees");
-const btnExportPdf = document.getElementById("btn-export-pdf");
-const btnExportExcel = document.getElementById("btn-export-excel");
-const btnReinitialiser = document.getElementById("btn-reinitialiser");
-const exportMessageEl = document.getElementById("export-message");
 
 const dialogDon = document.getElementById("dialog-don");
 const formDon = document.getElementById("form-don");
@@ -193,7 +182,6 @@ let vueActuelle = "connexion"; // "connexion" | "app" | "admin"
 let vueAppInterne = "accueil"; // "accueil" | "liste-rues" | "rue-detail" | "statistiques" | "recherche" | "cartographie" | "compta" | "fin-campagne"
 let ongletTourneeActuel = "toutes"; // "toutes" | "repasses" | "a-faire"
 let modeReorganisation = false;
-let agentsDisponibles = [];
 
 // --- Service worker ---------------------------------------------------
 if ("serviceWorker" in navigator) {
@@ -250,7 +238,7 @@ function afficherApp() {
   afficherAccueil();
 }
 
-async function afficherAdmin() {
+function afficherAdmin() {
   vueActuelle = "admin";
   ecranConnexionEl.hidden = true;
   appEl.hidden = true;
@@ -258,7 +246,6 @@ async function afficherAdmin() {
   agentBadgeEl.textContent = `${agentActuel.prenom} ${agentActuel.nom}`.trim() || "Amicale";
   agentBadgeEl.hidden = false;
   btnDeconnexion.hidden = false;
-  await chargerEtAfficherAdmin();
 }
 
 function afficherMessageConnexion(texte, type) {
@@ -1463,165 +1450,6 @@ async function supprimerDeSupabase(table, id) {
     console.warn(`[supabase] échec de suppression (${table}) :`, error.message);
   }
 }
-
-// --- Administration (amicale) -----------------------------------------
-async function chargerEtAfficherAdmin() {
-  const supabase = await getSupabaseClient();
-  if (!supabase) {
-    adminListeTourneesEl.innerHTML = "<li>Supabase n'est pas configuré.</li>";
-    return;
-  }
-
-  try {
-    const [tournees, agents] = await Promise.all([listerTournees(supabase), listerAgents(supabase)]);
-    agentsDisponibles = agents;
-    rendreListeTournees(tournees, supabase);
-  } catch (err) {
-    adminListeTourneesEl.innerHTML = `<li>Erreur : ${err.message}</li>`;
-  }
-}
-
-function rendreListeTournees(tournees, supabase) {
-  adminListeTourneesEl.innerHTML = "";
-
-  for (const t of tournees) {
-    const li = document.createElement("li");
-    li.className = "admin-tournee-item";
-
-    const agentsHtml = t.agents
-      .map(
-        (a) =>
-          `<span class="agent-chip">${a.prenom} ${a.nom} <button type="button" data-retirer="${a.id}">×</button></span>`
-      )
-      .join("");
-
-    const pourcentage = t.nombreAdresses ? Math.round((t.nombreTraitees / t.nombreAdresses) * 100) : 0;
-
-    li.innerHTML = `
-      <div class="admin-tournee-titre">Tournée n°${t.numero} — ${t.nom_rue}, ${t.nom_commune}</div>
-      <div class="admin-tournee-meta">${t.nombreAdresses} adresse(s)</div>
-      <div class="admin-tournee-progression">
-        ${t.nombreTraitees} / ${t.nombreAdresses} maisons traitées
-        <div class="progress-bar"><div class="progress-fill" style="width: ${pourcentage}%"></div></div>
-      </div>
-      <div class="admin-tournee-agents">${agentsHtml || "<em>Aucun agent affecté</em>"}</div>
-    `;
-
-    const dejaAffectes = new Set(t.agents.map((a) => a.id));
-    const optionsDisponibles = agentsDisponibles.filter((a) => !dejaAffectes.has(a.id));
-
-    if (optionsDisponibles.length > 0) {
-      const formAssign = document.createElement("div");
-      formAssign.className = "admin-assign-form";
-
-      const select = document.createElement("select");
-      select.innerHTML = optionsDisponibles
-        .map((a) => `<option value="${a.id}">${a.prenom} ${a.nom}</option>`)
-        .join("");
-
-      const btnAssign = document.createElement("button");
-      btnAssign.type = "button";
-      btnAssign.className = "secondaire";
-      btnAssign.textContent = "Affecter";
-      btnAssign.addEventListener("click", async () => {
-        try {
-          await affecterAgent(supabase, t.id, select.value);
-          chargerEtAfficherAdmin();
-        } catch (err) {
-          adminMessageEl.textContent = "Erreur : " + err.message;
-          adminMessageEl.className = "connexion-message erreur";
-        }
-      });
-
-      formAssign.append(select, btnAssign);
-      li.appendChild(formAssign);
-    }
-
-    li.querySelectorAll("[data-retirer]").forEach((btn) => {
-      btn.addEventListener("click", async () => {
-        try {
-          await retirerAgent(supabase, t.id, btn.dataset.retirer);
-          chargerEtAfficherAdmin();
-        } catch (err) {
-          adminMessageEl.textContent = "Erreur : " + err.message;
-          adminMessageEl.className = "connexion-message erreur";
-        }
-      });
-    });
-
-    adminListeTourneesEl.appendChild(li);
-  }
-}
-
-formNouvelleTournee.addEventListener("submit", async (event) => {
-  event.preventDefault();
-  const supabase = await getSupabaseClient();
-  if (!supabase) return;
-
-  try {
-    await creerTournee(supabase, {
-      numero: parseInt(adminNumeroInput.value, 10),
-      nom_commune: adminCommuneInput.value.trim(),
-      nom_rue: adminRueInput.value.trim(),
-    });
-    formNouvelleTournee.reset();
-    adminMessageEl.textContent = "Tournée créée.";
-    adminMessageEl.className = "connexion-message succes";
-    chargerEtAfficherAdmin();
-  } catch (err) {
-    adminMessageEl.textContent = "Erreur : " + err.message;
-    adminMessageEl.className = "connexion-message erreur";
-  }
-});
-
-// --- Fin de campagne : export + réinitialisation ------------------------
-function afficherMessageExport(texte, type) {
-  exportMessageEl.textContent = texte;
-  exportMessageEl.className = "connexion-message" + (type ? " " + type : "");
-}
-
-btnExportPdf.addEventListener("click", async () => {
-  const supabase = await getSupabaseClient();
-  if (!supabase) return;
-
-  afficherMessageExport("Génération du PDF…");
-  try {
-    await exporterPDF(supabase);
-    afficherMessageExport("PDF téléchargé.", "succes");
-  } catch (err) {
-    afficherMessageExport("Erreur : " + err.message, "erreur");
-  }
-});
-
-btnExportExcel.addEventListener("click", async () => {
-  const supabase = await getSupabaseClient();
-  if (!supabase) return;
-
-  afficherMessageExport("Génération du fichier Excel…");
-  try {
-    await exporterExcel(supabase);
-    afficherMessageExport("Fichier Excel téléchargé.", "succes");
-  } catch (err) {
-    afficherMessageExport("Erreur : " + err.message, "erreur");
-  }
-});
-
-btnReinitialiser.addEventListener("click", async () => {
-  const confirme = window.confirm(
-    "Avez-vous bien exporté les données ?\n\nCette action remet à zéro les cases de passage (1, 2, 3) de TOUTES les adresses, pour toutes les tournées. Les communes, rues, adresses et dons ne sont pas supprimés. Continuer ?"
-  );
-  if (!confirme) return;
-
-  const supabase = await getSupabaseClient();
-  if (!supabase) return;
-
-  try {
-    await reinitialiserCampagne(supabase);
-    afficherMessageExport("Campagne réinitialisée pour la nouvelle année.", "succes");
-  } catch (err) {
-    afficherMessageExport("Erreur : " + err.message, "erreur");
-  }
-});
 
 // --- Démarrage ---------------------------------------------------------
 async function demarrer() {
