@@ -24,6 +24,7 @@ import {
   donManquantMalgrePassage,
   estAdresseValidee,
   reordonnerAdresses,
+  reordonnerRues,
   DEMO_TOURNEE_ID,
   DEMO_AGENT_ID,
 } from "./db.js";
@@ -254,6 +255,7 @@ let vueActuelle = "connexion"; // "connexion" | "app" | "admin"
 let vueAppInterne = "accueil"; // "accueil" | "liste-rues" | "rue-detail" | "statistiques" | "recherche" | "cartographie" | "compta" | "fin-campagne"
 let ongletTourneeActuel = "toutes"; // "toutes" | "repasses" | "a-faire"
 let modeReorganisation = false;
+let communeReorgId = null; // id de la commune dont les rues sont en cours de réorganisation, ou null
 
 // --- Service worker ---------------------------------------------------
 if ("serviceWorker" in navigator) {
@@ -924,33 +926,81 @@ async function creerBlocCommune(commune) {
   const rues = await getRuesByCommune(commune.id);
   rues.sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
 
+  const enReorg = communeReorgId === commune.id;
+
   const liste = document.createElement("ul");
   liste.className = "rues-liste";
-  for (const rue of rues) {
-    const adresses = await getAdressesByRue(rue.id);
-    const total = adresses.length;
-    const donsParAdresse = new Map();
-    for (const adresse of adresses) donsParAdresse.set(adresse.id, await getDonsByAdresse(adresse.id));
-    const traitees = adresses.filter((a) => estAdresseValidee(a, donsParAdresse.get(a.id))).length;
+  if (enReorg) {
+    for (const rue of rues) {
+      liste.appendChild(creerLigneRueReorganisation(rue));
+    }
+  } else {
+    for (const rue of rues) {
+      const adresses = await getAdressesByRue(rue.id);
+      const total = adresses.length;
+      const donsParAdresse = new Map();
+      for (const adresse of adresses) donsParAdresse.set(adresse.id, await getDonsByAdresse(adresse.id));
+      const traitees = adresses.filter((a) => estAdresseValidee(a, donsParAdresse.get(a.id))).length;
 
-    const li = document.createElement("li");
-    li.className = `rue-carte statut-${statutRue(adresses, donsParAdresse)}`;
-    li.innerHTML = `
-      <span class="rue-carte-nom">${rue.nom}</span>
-      <span class="rue-carte-stats">${formaterCompteur(traitees, total)}</span>
-    `;
-    li.addEventListener("click", () => afficherRueDetail(rue.id));
-    liste.appendChild(li);
+      const li = document.createElement("li");
+      li.className = `rue-carte statut-${statutRue(adresses, donsParAdresse)}`;
+      li.innerHTML = `
+        <span class="rue-carte-nom">${rue.nom}</span>
+        <span class="rue-carte-stats">${formaterCompteur(traitees, total)}</span>
+      `;
+      li.addEventListener("click", () => afficherRueDetail(rue.id));
+      liste.appendChild(li);
+    }
   }
 
-  const btnAjouterRue = document.createElement("button");
-  btnAjouterRue.type = "button";
-  btnAjouterRue.className = "secondaire";
-  btnAjouterRue.textContent = "+ Ajouter une rue";
-  btnAjouterRue.addEventListener("click", () => ouvrirDialogNouvelleRue(commune));
+  const actions = document.createElement("div");
+  actions.className = "form-inline";
 
-  bloc.append(titre, liste, btnAjouterRue);
+  const btnReorganiserRues = document.createElement("button");
+  btnReorganiserRues.type = "button";
+  btnReorganiserRues.className = "secondaire";
+  btnReorganiserRues.textContent = enReorg ? "✓ Terminer" : "⠿ Réorganiser";
+  btnReorganiserRues.hidden = rues.length < 2;
+  btnReorganiserRues.addEventListener("click", () => {
+    communeReorgId = enReorg ? null : commune.id;
+    rendreOngletActuel();
+  });
+  actions.appendChild(btnReorganiserRues);
+
+  if (!enReorg) {
+    const btnAjouterRue = document.createElement("button");
+    btnAjouterRue.type = "button";
+    btnAjouterRue.className = "secondaire";
+    btnAjouterRue.textContent = "+ Ajouter une rue";
+    btnAjouterRue.addEventListener("click", () => ouvrirDialogNouvelleRue(commune));
+    actions.appendChild(btnAjouterRue);
+  }
+
+  bloc.append(titre, liste, actions);
   return bloc;
+}
+
+function creerLigneRueReorganisation(rue) {
+  const li = document.createElement("li");
+  li.className = "rue-carte rue-reorg";
+  li.dataset.id = rue.id;
+
+  const label = document.createElement("span");
+  label.className = "rue-carte-nom";
+  label.textContent = rue.nom;
+
+  const poignee = document.createElement("span");
+  poignee.className = "drag-handle";
+  poignee.textContent = "⠿";
+
+  li.append(label, poignee);
+  activerGlisserDeposer(li, poignee, "rue-reorg", async (idsOrdonnes) => {
+    const ruesMaj = await reordonnerRues(idsOrdonnes);
+    for (const r of ruesMaj) {
+      pousserVersSupabase("rues", { id: r.id, commune_id: r.commune_id, ordre: r.ordre });
+    }
+  });
+  return li;
 }
 
 btnRetourRues.addEventListener("click", () => afficherListeRues());
@@ -1133,19 +1183,27 @@ function creerLigneReorganisation(adresse, rue) {
   poignee.textContent = "⠿";
 
   li.append(label, poignee);
-  activerGlisserDeposer(li, poignee);
+  activerGlisserDeposer(li, poignee, "adresse-reorg", async (idsOrdonnes) => {
+    const adressesMaj = await reordonnerAdresses(idsOrdonnes);
+    for (const a of adressesMaj) {
+      pousserVersSupabase("adresses", { id: a.id, rue_id: a.rue_id, ordre: a.ordre });
+    }
+  });
   return li;
 }
 
 // Glisser-déposer tactile/souris via l'API Pointer Events : la ligne ne
 // bouge pas dans le DOM pendant le glissement (elle flotte au-dessus grâce à
 // `transform`), le vrai déplacement n'a lieu qu'au relâchement — ça évite les
-// sauts visuels qu'un réordonnancement en continu provoquerait.
-function activerGlisserDeposer(item, poignee) {
+// sauts visuels qu'un réordonnancement en continu provoquerait. Générique :
+// `classeItem` sélectionne les lignes triables de la liste courante,
+// `onReordonner` persiste le nouvel ordre (adresses dans une rue, ou rues
+// dans une commune).
+function activerGlisserDeposer(item, poignee, classeItem, onReordonner) {
   poignee.addEventListener("pointerdown", (event) => {
     event.preventDefault();
     const liste = item.parentElement;
-    const items = () => [...liste.querySelectorAll(".adresse-reorg")];
+    const items = () => [...liste.querySelectorAll(`.${classeItem}`)];
     const autres = items()
       .filter((el) => el !== item)
       .map((el) => ({ el, rect: el.getBoundingClientRect() }));
@@ -1174,10 +1232,7 @@ function activerGlisserDeposer(item, poignee) {
       else liste.appendChild(item);
 
       const idsOrdonnes = items().map((el) => el.dataset.id);
-      const adressesMaj = await reordonnerAdresses(idsOrdonnes);
-      for (const a of adressesMaj) {
-        pousserVersSupabase("adresses", { id: a.id, rue_id: a.rue_id, ordre: a.ordre });
-      }
+      await onReordonner(idsOrdonnes);
     }
 
     poignee.addEventListener("pointermove", onMove);

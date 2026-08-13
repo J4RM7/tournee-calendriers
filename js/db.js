@@ -346,6 +346,19 @@ export async function reordonnerAdresses(idsOrdonnes) {
   return adressesMaj;
 }
 
+// Même principe que reordonnerAdresses, pour les rues d'une commune.
+export async function reordonnerRues(idsOrdonnes) {
+  const ruesMaj = [];
+  for (let i = 0; i < idsOrdonnes.length; i++) {
+    const rue = await get("rues", idsOrdonnes[i]);
+    if (!rue || rue.ordre === i) continue;
+    rue.ordre = i;
+    await put("rues", rue);
+    ruesMaj.push(rue);
+  }
+  return ruesMaj;
+}
+
 export async function updateAdressePassage(id, numeroPassage, nouvelEtat) {
   const adresse = await get("adresses", id);
   if (!adresse) return;

@@ -958,7 +958,8 @@ dialog::backdrop {
   border-color: var(--rouge);
 }
 
-.adresse-reorg {
+.adresse-reorg,
+.rue-reorg {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -967,7 +968,8 @@ dialog::backdrop {
   touch-action: pan-y;
 }
 
-.adresse-reorg.en-glisse {
+.adresse-reorg.en-glisse,
+.rue-reorg.en-glisse {
   position: relative;
   z-index: 20;
   box-shadow: 0 6px 16px rgba(0, 0, 0, 0.18);
