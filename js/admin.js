@@ -92,11 +92,9 @@ async function appelerFonctionAdmin(supabase, chemin, corps) {
 
 // Crée la tournée ET son compte de connexion partagé (nécessite la clé
 // service_role, donc passe par une fonction serverless — voir api/admin/).
-export async function creerTourneeDistante(supabase, { numero, nomCommune, nomRue, email, motDePasse }) {
+export async function creerTourneeDistante(supabase, { numero, email, motDePasse }) {
   const { tournee } = await appelerFonctionAdmin(supabase, "/api/admin/creer-tournee", {
     numero,
-    nomCommune,
-    nomRue,
     email,
     motDePasse,
   });

@@ -53,14 +53,15 @@ create table agents (
 -- Une tournée numérotée, confiée à un ou plusieurs agents. Son user_id est
 -- le compte de connexion PARTAGÉ par tous les amicalistes qui y sont
 -- affectés (un seul identifiant par tournée, pas un par personne).
--- nom_commune et nom_rue ne servent qu'à l'étiquette dans l'écran admin ;
--- le vrai contenu (communes/rues/adresses réellement travaillées) vit dans
--- les tables ci-dessous, gérées depuis l'app par les agents eux-mêmes.
+-- nom_commune et nom_rue ne servent qu'à l'étiquette dans l'écran admin,
+-- et ne sont pas renseignés à la création : c'est l'agent qui les crée
+-- lui-même la première fois via son écran normal (le vrai contenu vit
+-- dans les tables communes/rues/adresses ci-dessous).
 create table tournees (
   id uuid primary key default gen_random_uuid(),
   numero integer not null unique check (numero > 0),
-  nom_commune text not null,
-  nom_rue text not null,
+  nom_commune text,
+  nom_rue text,
   user_id uuid unique references auth.users (id) on delete set null,
   created_at timestamptz not null default now()
 );

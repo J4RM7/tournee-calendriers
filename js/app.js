@@ -168,8 +168,6 @@ const agentAnnulerBtn = document.getElementById("agent-annuler");
 const dialogNouvelleTourneeAdmin = document.getElementById("dialog-nouvelle-tournee-admin");
 const formNouvelleTourneeAdmin = document.getElementById("form-nouvelle-tournee-admin");
 const tourneeNumeroInput = document.getElementById("tournee-numero");
-const tourneeCommuneInput = document.getElementById("tournee-commune");
-const tourneeRueInput = document.getElementById("tournee-rue");
 const tourneeEmailInput = document.getElementById("tournee-email");
 const tourneeMotDePasseInput = document.getElementById("tournee-mot-de-passe");
 const tourneeGenererMdpBtn = document.getElementById("tournee-generer-mdp");
@@ -474,6 +472,14 @@ function formaterMontant(montant) {
 
 function formaterCompteur(traitees, total) {
   return `${traitees} / ${total} maison${total > 1 ? "s" : ""}`;
+}
+
+// La commune/rue ne sont plus saisies par l'admin à la création : tant
+// que l'agent n'a pas créé sa première commune/rue depuis sa session, ces
+// champs restent vides côté tournees (voir schema.sql).
+function libelleTournee(tournee) {
+  const lieu = [tournee.nom_rue, tournee.nom_commune].filter(Boolean).join(", ");
+  return `Tournée n°${tournee.numero}` + (lieu ? ` — ${lieu}` : "");
 }
 
 function formaterHorodatage(dateIso) {
@@ -1723,7 +1729,7 @@ function rendreListeTourneesAdmin(tournees) {
     const pourcentage = t.nombreAdresses ? Math.round((t.nombreTraitees / t.nombreAdresses) * 100) : 0;
     const agentsHtml = t.agents.map((a) => `<span class="agent-chip">${a.prenom} ${a.nom}</span>`).join("");
     li.innerHTML = `
-      <div class="admin-tournee-titre">Tournée n°${t.numero} — ${t.nom_rue}, ${t.nom_commune}</div>
+      <div class="admin-tournee-titre">${libelleTournee(t)}</div>
       <div class="admin-tournee-progression">
         ${t.nombreTraitees} / ${t.nombreAdresses} maisons traitées
         <div class="progress-bar"><div class="progress-fill" style="width: ${pourcentage}%"></div></div>
@@ -1757,8 +1763,6 @@ formNouvelleTourneeAdmin.addEventListener("submit", async (event) => {
   try {
     await creerTourneeDistante(supabase, {
       numero: parseInt(tourneeNumeroInput.value, 10),
-      nomCommune: tourneeCommuneInput.value.trim(),
-      nomRue: tourneeRueInput.value.trim(),
       email: tourneeEmailInput.value.trim(),
       motDePasse: tourneeMotDePasseInput.value,
     });
@@ -1789,7 +1793,7 @@ async function rafraichirAdminTourneeDetail() {
     return;
   }
 
-  adminTourneeDetailTitreEl.textContent = `Tournée n°${tournee.numero} — ${tournee.nom_rue}, ${tournee.nom_commune}`;
+  adminTourneeDetailTitreEl.textContent = libelleTournee(tournee);
   adminTourneeDetailCompteurEl.textContent = formaterCompteur(tournee.nombreTraitees, tournee.nombreAdresses);
   const pourcentage = tournee.nombreAdresses ? Math.round((tournee.nombreTraitees / tournee.nombreAdresses) * 100) : 0;
   adminTourneeDetailProgressEl.style.width = `${pourcentage}%`;

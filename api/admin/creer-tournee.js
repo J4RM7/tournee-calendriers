@@ -14,9 +14,9 @@ module.exports = async (req, res) => {
   try {
     await verifierAdmin(req);
 
-    const { numero, nomCommune, nomRue, email, motDePasse } = req.body || {};
-    if (!numero || !nomCommune || !nomRue || !email || !motDePasse) {
-      throw new ErreurApi(400, "Numéro, commune, rue, email et mot de passe sont tous requis.");
+    const { numero, email, motDePasse } = req.body || {};
+    if (!numero || !email || !motDePasse) {
+      throw new ErreurApi(400, "Numéro, email et mot de passe sont tous requis.");
     }
 
     const { url, headers } = clientServiceRole();
@@ -34,12 +34,7 @@ module.exports = async (req, res) => {
     const reponseTournee = await fetch(`${url}/rest/v1/tournees`, {
       method: "POST",
       headers: { ...headers, Prefer: "return=representation" },
-      body: JSON.stringify({
-        numero,
-        nom_commune: nomCommune,
-        nom_rue: nomRue,
-        user_id: nouvelUtilisateur.id,
-      }),
+      body: JSON.stringify({ numero, user_id: nouvelUtilisateur.id }),
     });
     const tournees = await reponseTournee.json();
     if (!reponseTournee.ok) {
