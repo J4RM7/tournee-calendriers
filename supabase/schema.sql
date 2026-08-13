@@ -12,7 +12,12 @@
 --   chaque niveau indépendamment et d'afficher une rue à la fois dans
 --   l'app plutôt qu'une grande liste plate.
 -- - Chaque adresse a 3 emplacements de passage fixes (passage_1/2/3).
--- - agents.est_admin distingue le compte de l'amicale des comptes pompiers.
+-- - agents.est_admin distingue le compte de l'amicale des comptes de
+--   tournée. Un amicaliste (pompier) n'a PAS de compte propre : c'est une
+--   fiche nom/prénom affectée à une tournée via tournee_agents. Le
+--   compte de connexion est partagé par tournée (tournees.user_id) —
+--   quiconque se connecte avec les identifiants de la tournée n°X choisit
+--   ensuite son nom dans le roster ("qui es-tu ?", géré côté app).
 -- - RLS en cascade : mes_tournee_ids() -> mes_rue_ids() -> adresses/dons.
 
 drop table if exists dons cascade;
@@ -30,6 +35,10 @@ drop function if exists est_admin();
 create extension if not exists pgcrypto;
 
 -- Sapeurs-pompiers (et le compte administrateur de l'amicale).
+-- Un amicaliste n'a pas de compte de connexion propre (voir tournees.user_id
+-- ci-dessous) : c'est juste une fiche nom/prénom, affectée à une ou
+-- plusieurs tournées via tournee_agents. Exception : le compte de
+-- l'amicale (est_admin), qui garde son propre user_id.
 create table agents (
   id uuid primary key default gen_random_uuid(),
   nom text not null,
@@ -37,18 +46,22 @@ create table agents (
   binome_id uuid references agents (id),
   user_id uuid unique references auth.users (id) on delete set null,
   est_admin boolean not null default false,
+  actif boolean not null default true,
   created_at timestamptz not null default now()
 );
 
--- Une tournée numérotée, confiée à un ou plusieurs agents. nom_commune et
--- nom_rue ne servent qu'à l'étiquette dans l'écran admin ; le vrai contenu
--- (communes/rues/adresses réellement travaillées) vit dans les tables
--- ci-dessous, gérées depuis l'app par les agents eux-mêmes.
+-- Une tournée numérotée, confiée à un ou plusieurs agents. Son user_id est
+-- le compte de connexion PARTAGÉ par tous les amicalistes qui y sont
+-- affectés (un seul identifiant par tournée, pas un par personne).
+-- nom_commune et nom_rue ne servent qu'à l'étiquette dans l'écran admin ;
+-- le vrai contenu (communes/rues/adresses réellement travaillées) vit dans
+-- les tables ci-dessous, gérées depuis l'app par les agents eux-mêmes.
 create table tournees (
   id uuid primary key default gen_random_uuid(),
   numero integer not null unique check (numero > 0),
   nom_commune text not null,
   nom_rue text not null,
+  user_id uuid unique references auth.users (id) on delete set null,
   created_at timestamptz not null default now()
 );
 
@@ -138,7 +151,8 @@ as $$
   select coalesce((select est_admin from agents where user_id = auth.uid()), false)
 $$;
 
--- Tournées auxquelles l'utilisateur connecté est affecté.
+-- Tournées dont le compte de connexion partagé est l'utilisateur connecté
+-- (voir tournees.user_id : un identifiant par tournée, pas par agent).
 create or replace function mes_tournee_ids()
 returns setof uuid
 language sql
@@ -146,10 +160,7 @@ stable
 security definer
 set search_path = public
 as $$
-  select ta.tournee_id
-  from tournee_agents ta
-  join agents a on a.id = ta.agent_id
-  where a.user_id = auth.uid()
+  select id from tournees where user_id = auth.uid()
 $$;
 
 -- Rues accessibles à l'utilisateur connecté (via ses tournées).
@@ -166,10 +177,16 @@ as $$
   where c.tournee_id in (select mes_tournee_ids())
 $$;
 
--- agents : chacun voit sa propre fiche ; l'admin voit tout le monde
--- (nécessaire pour affecter les agents aux tournées).
+-- agents : chacun voit sa propre fiche (le compte admin) ; les comptes de
+-- tournée voient tout le monde (nécessaire pour l'écran "qui es-tu ?" et
+-- pour composer le roster affiché) ; l'admin voit tout le monde. Gestion
+-- (créer/désactiver) réservée à l'admin.
 create policy "lecture_agents" on agents
-  for select using (user_id = auth.uid() or est_admin());
+  for select using (user_id = auth.uid() or id in (select agent_id from tournee_agents where tournee_id in (select mes_tournee_ids())) or est_admin());
+create policy "ecriture_agents" on agents
+  for insert with check (est_admin());
+create policy "maj_agents" on agents
+  for update using (est_admin());
 
 -- tournees : visibles si affecté dessus, ou admin. Gestion réservée à l'admin.
 create policy "lecture_tournees" on tournees
@@ -222,8 +239,9 @@ create policy "maj_adresses" on adresses
 create policy "ecriture_adresses" on adresses
   for insert with check (est_admin() or rue_id in (select mes_rue_ids()));
 
--- dons : accès aux dons des adresses accessibles, ou admin. Saisie par
--- l'agent affecté (ou l'admin).
+-- dons : accès aux dons des adresses accessibles, ou admin. Saisie
+-- possible pour n'importe quel amicaliste du roster de la tournée
+-- connectée (pas de compte individuel, voir mes_tournee_ids()), ou admin.
 create policy "acces_dons" on dons
   for select using (
     est_admin() or adresse_id in (select id from adresses where rue_id in (select mes_rue_ids()))
@@ -232,7 +250,22 @@ create policy "ajout_dons" on dons
   for insert with check (
     est_admin()
     or (
-      agent_id in (select id from agents where user_id = auth.uid())
+      agent_id in (select ta.agent_id from tournee_agents ta where ta.tournee_id in (select mes_tournee_ids()))
       and adresse_id in (select id from adresses where rue_id in (select mes_rue_ids()))
     )
   );
+
+-- Storage : cartes PDF des tournées (bucket "cartes-tournees", à créer à
+-- la main dans le Dashboard Supabase — Storage > New bucket, "Public
+-- bucket" DÉCOCHÉ). Un seul objet par tournée, nommé "<tournee_id>.pdf".
+create policy "lecture_cartes" on storage.objects
+  for select using (
+    bucket_id = 'cartes-tournees'
+    and (est_admin() or split_part(name, '.', 1)::uuid in (select mes_tournee_ids()))
+  );
+create policy "ecriture_cartes" on storage.objects
+  for insert with check (bucket_id = 'cartes-tournees' and est_admin());
+create policy "maj_cartes" on storage.objects
+  for update using (bucket_id = 'cartes-tournees' and est_admin());
+create policy "suppr_cartes" on storage.objects
+  for delete using (bucket_id = 'cartes-tournees' and est_admin());

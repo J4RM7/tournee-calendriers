@@ -1,7 +1,9 @@
-// Authentification par email + mot de passe via Supabase Auth. Les comptes
-// (un par agent, plus le compte de l'amicale) sont créés à la main dans le
-// Dashboard Supabase (Authentication > Users > Add user, "Auto Confirm
-// User" coché) puis reliés à une fiche "agents" via agents.user_id.
+// Authentification par email + mot de passe via Supabase Auth. Deux types
+// de comptes : celui de l'amicale (admin, lié à agents.user_id), et un
+// compte PARTAGÉ par tournée (lié à tournees.user_id, créé depuis l'écran
+// admin — voir js/admin.js : creerTourneeDistante). Les amicalistes
+// eux-mêmes n'ont pas de compte propre : après connexion sur le compte
+// d'une tournée, l'app demande "qui es-tu ?" parmi le roster affecté.
 import { getSupabaseClient } from "./supabaseClient.js";
 
 // Session en cours, ou null si non connecté / Supabase non configuré.
@@ -52,4 +54,29 @@ export async function getAgentPourUtilisateur(userId) {
     return null;
   }
   return data;
+}
+
+// Récupère la tournée dont le compte de connexion partagé est celui
+// connecté, avec son roster d'amicalistes (pour l'écran "qui es-tu ?").
+// Retourne null si l'utilisateur connecté n'est lié à aucune tournée.
+export async function getTourneePourUtilisateur(userId) {
+  const supabase = await getSupabaseClient();
+  if (!supabase) return null;
+
+  const { data, error } = await supabase
+    .from("tournees")
+    .select("*, tournee_agents(agents(id, nom, prenom, actif))")
+    .eq("user_id", userId)
+    .maybeSingle();
+
+  if (error) {
+    console.warn("[auth] impossible de récupérer la tournée :", error.message);
+    return null;
+  }
+  if (!data) return null;
+
+  return {
+    ...data,
+    agents: (data.tournee_agents || []).map((ta) => ta.agents).filter((a) => a && a.actif),
+  };
 }

@@ -46,6 +46,14 @@
     </div>
   </section>
 
+  <section id="ecran-qui-es-tu" hidden>
+    <div class="connexion-carte">
+      <h2>Qui es-tu ?</h2>
+      <p>Choisis ton nom parmi les amicalistes affectés à cette tournée.</p>
+      <div id="qui-es-tu-liste" class="qui-es-tu-liste"></div>
+    </div>
+  </section>
+
   <main id="app" hidden>
     <section id="vue-accueil">
       <div class="paves-accueil">
@@ -187,7 +195,10 @@
     <section id="vue-cartographie" hidden>
       <button type="button" class="btn-retour" data-retour-accueil>← Accueil</button>
       <h2>Cartographie</h2>
-      <p class="rue-vide">Fonctionnalité à venir — probablement le plan de la tournée en PDF.</p>
+      <p id="carto-message" class="rue-vide">Chargement…</p>
+      <a id="carto-lien-pdf" class="secondaire pave-pleine-largeur" target="_blank" rel="noopener" hidden>
+        📄 Ouvrir le plan PDF
+      </a>
     </section>
 
     <section id="vue-compta" hidden>
@@ -228,7 +239,76 @@
   </main>
 
   <section id="ecran-admin" hidden>
-    <p class="rue-vide">Écran admin en reconstruction.</p>
+    <section id="vue-admin-accueil">
+      <div class="paves-accueil">
+        <button type="button" id="pave-admin-agents" class="pave-accueil pave-accueil-agents">
+          <span class="pave-accueil-icone">🧑‍🚒</span>
+          <span>Amicalistes</span>
+        </button>
+        <button type="button" id="pave-admin-tournees" class="pave-accueil pave-accueil-tournee">
+          <span class="pave-accueil-icone">📋</span>
+          <span>Tournées</span>
+        </button>
+        <button type="button" id="pave-admin-compta" class="pave-accueil pave-accueil-compta">
+          <span class="pave-accueil-icone">💶</span>
+          <span>Compta</span>
+        </button>
+      </div>
+    </section>
+
+    <section id="vue-admin-agents" hidden>
+      <button type="button" class="btn-retour" data-retour-admin-accueil>← Accueil</button>
+      <h2>Amicalistes</h2>
+      <button type="button" id="btn-ajouter-agent" class="secondaire pave-pleine-largeur">
+        + Ajouter un amicaliste
+      </button>
+      <ul id="admin-liste-agents" class="admin-liste-tournees"></ul>
+    </section>
+
+    <section id="vue-admin-tournees" hidden>
+      <button type="button" class="btn-retour" data-retour-admin-accueil>← Accueil</button>
+      <h2>Tournées</h2>
+      <button type="button" id="btn-ajouter-tournee" class="secondaire pave-pleine-largeur">
+        + Ajouter une tournée
+      </button>
+      <ul id="admin-liste-tournees" class="admin-liste-tournees"></ul>
+    </section>
+
+    <section id="vue-admin-tournee-detail" hidden>
+      <button type="button" id="btn-retour-admin-tournees" class="btn-retour">← Tournées</button>
+      <h2 id="admin-tournee-detail-titre"></h2>
+      <div class="admin-tournee-progression">
+        <span id="admin-tournee-detail-compteur"></span>
+        <div class="progress-bar"><div id="admin-tournee-detail-progress" class="progress-fill"></div></div>
+      </div>
+
+      <div class="admin-bloc">
+        <h3>Amicalistes affectés</h3>
+        <div id="admin-tournee-detail-agents" class="admin-tournee-agents"></div>
+        <div id="admin-tournee-detail-assign" class="admin-assign-form"></div>
+      </div>
+
+      <div class="admin-bloc">
+        <h3>Carte PDF</h3>
+        <p id="admin-carte-statut" class="admin-bloc-desc"></p>
+        <div class="form-inline">
+          <button type="button" id="btn-importer-carte" class="secondaire">Importer / remplacer</button>
+          <a id="admin-carte-lien" class="secondaire" target="_blank" rel="noopener" hidden>Voir</a>
+          <button type="button" id="btn-supprimer-carte" class="secondaire" hidden>Supprimer</button>
+        </div>
+        <input type="file" id="admin-carte-fichier" accept="application/pdf" hidden />
+      </div>
+
+      <button type="button" id="btn-supprimer-tournee" class="bouton-danger pave-pleine-largeur">
+        🗑️ Supprimer cette tournée
+      </button>
+    </section>
+
+    <section id="vue-admin-compta" hidden>
+      <button type="button" class="btn-retour" data-retour-admin-accueil>← Accueil</button>
+      <h2>Compta</h2>
+      <p class="rue-vide">Fonctionnalité à venir.</p>
+    </section>
   </section>
 
   <!-- Formulaire de saisie d'un don, affiché quand on clique sur la case
@@ -383,6 +463,81 @@
       <div class="dialog-actions">
         <button type="button" id="nouvelle-rue-annuler">Annuler</button>
         <button type="submit" class="primary">Ajouter</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Écran admin : ajouter un amicaliste (fiche seule, pas de compte) -->
+  <dialog id="dialog-nouvel-agent">
+    <form id="form-nouvel-agent" method="dialog">
+      <h2>Ajouter un amicaliste</h2>
+
+      <label for="agent-prenom">Prénom</label>
+      <input type="text" id="agent-prenom" required />
+
+      <label for="agent-nom">Nom</label>
+      <input type="text" id="agent-nom" required />
+
+      <p id="agent-message" class="connexion-message"></p>
+
+      <div class="dialog-actions">
+        <button type="button" id="agent-annuler">Annuler</button>
+        <button type="submit" class="primary">Ajouter</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Écran admin : ajouter une tournée (crée aussi son compte de
+       connexion partagé) -->
+  <dialog id="dialog-nouvelle-tournee-admin">
+    <form id="form-nouvelle-tournee-admin" method="dialog">
+      <h2>Ajouter une tournée</h2>
+
+      <label for="tournee-numero">N° de tournée</label>
+      <input type="number" id="tournee-numero" min="1" required />
+
+      <label for="tournee-commune">Commune</label>
+      <input type="text" id="tournee-commune" required />
+
+      <label for="tournee-rue">Rue</label>
+      <input type="text" id="tournee-rue" required />
+
+      <label for="tournee-email">Email de connexion</label>
+      <input type="email" id="tournee-email" required />
+
+      <label for="tournee-mot-de-passe">Mot de passe</label>
+      <div class="form-inline">
+        <input type="text" id="tournee-mot-de-passe" required />
+        <button type="button" id="tournee-generer-mdp" class="secondaire">Générer</button>
+      </div>
+
+      <p id="tournee-message" class="connexion-message"></p>
+
+      <div class="dialog-actions">
+        <button type="button" id="tournee-annuler">Annuler</button>
+        <button type="submit" class="primary">Ajouter</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Écran admin : confirmation forte avant suppression d'une tournée
+       (supprime aussi, en cascade, tous les dons déjà saisis) -->
+  <dialog id="dialog-confirmer-suppression-tournee">
+    <form id="form-confirmer-suppression-tournee" method="dialog">
+      <h2>Supprimer cette tournée ?</h2>
+      <p class="admin-bloc-desc">
+        Cette action supprime aussi, définitivement, toutes les communes, rues,
+        adresses et dons déjà saisis pour cette tournée. Pour confirmer, tape
+        son numéro : <strong id="suppr-tournee-numero-cible"></strong>
+      </p>
+
+      <input type="text" id="suppr-tournee-numero-saisi" inputmode="numeric" required />
+
+      <p id="suppr-tournee-message" class="connexion-message"></p>
+
+      <div class="dialog-actions">
+        <button type="button" id="suppr-tournee-annuler">Annuler</button>
+        <button type="submit" class="bouton-danger">Supprimer définitivement</button>
       </div>
     </form>
   </dialog>

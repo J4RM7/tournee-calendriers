@@ -35,8 +35,22 @@ import {
   deconnecter,
   ecouterChangementsAuth,
   getAgentPourUtilisateur,
+  getTourneePourUtilisateur,
 } from "./auth.js";
 import { synchroniserDonneesAgent } from "./sync.js";
+import {
+  listerTournees,
+  listerAgents,
+  creerAgent,
+  desactiverAgent,
+  creerTourneeDistante,
+  supprimerTourneeDistante,
+  affecterAgent,
+  retirerAgent,
+  uploaderCartePdf,
+  obtenirUrlCartePdf,
+  supprimerCartePdf,
+} from "./admin.js";
 
 const PROCHAIN_ETAT_PASSAGE = { a_faire: "passe", passe: "absent", absent: "a_faire" };
 const LABEL_PASSAGE = { a_faire: "à faire", passe: "passé", absent: "absent" };
@@ -52,6 +66,8 @@ const paveAccueilFinCampagneBtn = document.getElementById("pave-accueil-fin-camp
 const boutonsRetourAccueil = document.querySelectorAll("[data-retour-accueil]");
 
 const vueCartographieEl = document.getElementById("vue-cartographie");
+const cartoMessageEl = document.getElementById("carto-message");
+const cartoLienPdfEl = document.getElementById("carto-lien-pdf");
 const vueComptaEl = document.getElementById("vue-compta");
 const comptaNbEspecesEl = document.getElementById("compta-nb-especes");
 const comptaTotalEspecesEl = document.getElementById("compta-total-especes");
@@ -111,6 +127,64 @@ const connexionMessageEl = document.getElementById("connexion-message");
 const btnModeDemo = document.getElementById("btn-mode-demo");
 
 const ecranAdminEl = document.getElementById("ecran-admin");
+
+const vueAdminAccueilEl = document.getElementById("vue-admin-accueil");
+const paveAdminAgentsBtn = document.getElementById("pave-admin-agents");
+const paveAdminTourneesBtn = document.getElementById("pave-admin-tournees");
+const paveAdminComptaBtn = document.getElementById("pave-admin-compta");
+const boutonsRetourAdminAccueil = document.querySelectorAll("[data-retour-admin-accueil]");
+
+const vueAdminAgentsEl = document.getElementById("vue-admin-agents");
+const btnAjouterAgent = document.getElementById("btn-ajouter-agent");
+const adminListeAgentsEl = document.getElementById("admin-liste-agents");
+
+const vueAdminTourneesEl = document.getElementById("vue-admin-tournees");
+const btnAjouterTournee = document.getElementById("btn-ajouter-tournee");
+const adminListeTourneesEl = document.getElementById("admin-liste-tournees");
+
+const vueAdminTourneeDetailEl = document.getElementById("vue-admin-tournee-detail");
+const btnRetourAdminTournees = document.getElementById("btn-retour-admin-tournees");
+const adminTourneeDetailTitreEl = document.getElementById("admin-tournee-detail-titre");
+const adminTourneeDetailCompteurEl = document.getElementById("admin-tournee-detail-compteur");
+const adminTourneeDetailProgressEl = document.getElementById("admin-tournee-detail-progress");
+const adminTourneeDetailAgentsEl = document.getElementById("admin-tournee-detail-agents");
+const adminTourneeDetailAssignEl = document.getElementById("admin-tournee-detail-assign");
+const adminCarteStatutEl = document.getElementById("admin-carte-statut");
+const btnImporterCarte = document.getElementById("btn-importer-carte");
+const adminCarteLienEl = document.getElementById("admin-carte-lien");
+const btnSupprimerCarte = document.getElementById("btn-supprimer-carte");
+const adminCarteFichierInput = document.getElementById("admin-carte-fichier");
+const btnSupprimerTournee = document.getElementById("btn-supprimer-tournee");
+
+const vueAdminComptaEl = document.getElementById("vue-admin-compta");
+
+const dialogNouvelAgent = document.getElementById("dialog-nouvel-agent");
+const formNouvelAgent = document.getElementById("form-nouvel-agent");
+const agentPrenomInput = document.getElementById("agent-prenom");
+const agentNomInput = document.getElementById("agent-nom");
+const agentMessageEl = document.getElementById("agent-message");
+const agentAnnulerBtn = document.getElementById("agent-annuler");
+
+const dialogNouvelleTourneeAdmin = document.getElementById("dialog-nouvelle-tournee-admin");
+const formNouvelleTourneeAdmin = document.getElementById("form-nouvelle-tournee-admin");
+const tourneeNumeroInput = document.getElementById("tournee-numero");
+const tourneeCommuneInput = document.getElementById("tournee-commune");
+const tourneeRueInput = document.getElementById("tournee-rue");
+const tourneeEmailInput = document.getElementById("tournee-email");
+const tourneeMotDePasseInput = document.getElementById("tournee-mot-de-passe");
+const tourneeGenererMdpBtn = document.getElementById("tournee-generer-mdp");
+const tourneeMessageEl = document.getElementById("tournee-message");
+const tourneeAnnulerBtn = document.getElementById("tournee-annuler");
+
+const dialogConfirmerSuppressionTournee = document.getElementById("dialog-confirmer-suppression-tournee");
+const formConfirmerSuppressionTournee = document.getElementById("form-confirmer-suppression-tournee");
+const supprTourneeNumeroCibleEl = document.getElementById("suppr-tournee-numero-cible");
+const supprTourneeNumeroSaisiInput = document.getElementById("suppr-tournee-numero-saisi");
+const supprTourneeMessageEl = document.getElementById("suppr-tournee-message");
+const supprTourneeAnnulerBtn = document.getElementById("suppr-tournee-annuler");
+
+const ecranQuiEsTuEl = document.getElementById("ecran-qui-es-tu");
+const quiEsTuListeEl = document.getElementById("qui-es-tu-liste");
 
 const dialogDon = document.getElementById("dialog-don");
 const formDon = document.getElementById("form-don");
@@ -202,12 +276,13 @@ window.addEventListener("online", majStatutConnexion);
 window.addEventListener("offline", majStatutConnexion);
 majStatutConnexion();
 
-// --- Écrans : connexion / app / admin --------------------------------
+// --- Écrans : connexion / qui-es-tu / app / admin ----------------------
 function afficherEcranConnexion() {
   vueActuelle = "connexion";
   ecranConnexionEl.hidden = false;
   appEl.hidden = true;
   ecranAdminEl.hidden = true;
+  ecranQuiEsTuEl.hidden = true;
   agentBadgeEl.hidden = true;
   btnDeconnexion.hidden = true;
   btnDeconnexionAccueil.hidden = true;
@@ -221,6 +296,7 @@ function afficherApp() {
   vueActuelle = "app";
   ecranConnexionEl.hidden = true;
   ecranAdminEl.hidden = true;
+  ecranQuiEsTuEl.hidden = true;
   appEl.hidden = false;
 
   if (modeDemo) {
@@ -242,10 +318,46 @@ function afficherAdmin() {
   vueActuelle = "admin";
   ecranConnexionEl.hidden = true;
   appEl.hidden = true;
+  ecranQuiEsTuEl.hidden = true;
   ecranAdminEl.hidden = false;
   agentBadgeEl.textContent = `${agentActuel.prenom} ${agentActuel.nom}`.trim() || "Amicale";
   agentBadgeEl.hidden = false;
   btnDeconnexion.hidden = false;
+  afficherAdminAccueil();
+}
+
+// Écran "qui es-tu ?" : affiché après connexion sur le compte partagé
+// d'une tournée, tant qu'aucun amicaliste n'a été choisi sur cet appareil
+// pour cette tournée (voir connecterAvecSession). Le choix est mémorisé
+// dans localStorage pour ne pas le redemander à chaque connexion.
+function afficherEcranQuiEsTu(tournee) {
+  vueActuelle = "qui-es-tu";
+  ecranConnexionEl.hidden = true;
+  appEl.hidden = true;
+  ecranAdminEl.hidden = true;
+  ecranQuiEsTuEl.hidden = false;
+  agentBadgeEl.hidden = true;
+  btnDeconnexion.hidden = false;
+  btnDeconnexionAccueil.hidden = true;
+
+  quiEsTuListeEl.innerHTML = "";
+  if ((tournee.agents || []).length === 0) {
+    quiEsTuListeEl.innerHTML =
+      '<p class="rue-vide">Aucun amicaliste n\'est encore affecté à cette tournée. Contactez l\'amicale.</p>';
+    return;
+  }
+  for (const agent of tournee.agents) {
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "secondaire pave-pleine-largeur";
+    btn.textContent = `${agent.prenom} ${agent.nom}`;
+    btn.addEventListener("click", () => {
+      agentActuel = agent;
+      localStorage.setItem(`agent-choisi-${tournee.id}`, agent.id);
+      afficherApp();
+    });
+    quiEsTuListeEl.appendChild(btn);
+  }
 }
 
 function afficherMessageConnexion(texte, type) {
@@ -253,38 +365,48 @@ function afficherMessageConnexion(texte, type) {
   connexionMessageEl.className = "connexion-message" + (type ? " " + type : "");
 }
 
-// --- Connexion (lien magique) ---------------------------------------------
+// --- Connexion ------------------------------------------------------------
 async function connecterAvecSession(session) {
   const supabase = await getSupabaseClient();
-  const agent = await getAgentPourUtilisateur(session.user.id);
+  modeDemo = false;
 
-  if (!agent) {
+  // Le compte de l'amicale (est_admin) a sa propre fiche "agents", liée
+  // directement à son user_id — pas de tournée personnelle à synchroniser.
+  const agentAdmin = await getAgentPourUtilisateur(session.user.id);
+  if (agentAdmin?.est_admin) {
+    agentActuel = agentAdmin;
+    afficherAdmin();
+    return;
+  }
+
+  // Sinon, c'est peut-être le compte partagé d'une tournée : les
+  // amicalistes n'ont pas de compte propre, voir schema.sql.
+  const tournee = await getTourneePourUtilisateur(session.user.id);
+  if (!tournee) {
     afficherMessageConnexion(
-      "Connecté, mais aucune fiche agent n'est encore associée à cet email. Contactez le responsable de la tournée.",
+      "Connecté, mais aucune tournée n'est encore associée à cet email. Contactez le responsable.",
       "erreur"
     );
     afficherEcranConnexion();
     return;
   }
 
-  agentActuel = agent;
-  modeDemo = false;
-
-  // Le compte de l'amicale (est_admin) n'a pas de tournée personnelle à
-  // synchroniser : il va droit au tableau de bord.
-  if (agent.est_admin) {
-    afficherAdmin();
-    return;
-  }
+  tourneeActuelleId = tournee.id;
 
   try {
-    const tournees = await synchroniserDonneesAgent(supabase, agent);
-    tourneeActuelleId = tournees[0]?.id ?? tourneeActuelleId;
+    await synchroniserDonneesAgent(supabase, tournee);
   } catch (err) {
     console.warn("[sync] échec de la synchronisation initiale :", err.message);
   }
 
-  afficherApp();
+  const choixMemorise = localStorage.getItem(`agent-choisi-${tournee.id}`);
+  const agentMemorise = tournee.agents.find((a) => a.id === choixMemorise);
+  if (agentMemorise) {
+    agentActuel = agentMemorise;
+    afficherApp();
+  } else {
+    afficherEcranQuiEsTu(tournee);
+  }
 }
 
 function activerModeDemo() {
@@ -322,6 +444,15 @@ async function handleDeconnexion() {
 
 btnDeconnexion.addEventListener("click", handleDeconnexion);
 btnDeconnexionAccueil.addEventListener("click", handleDeconnexion);
+
+// Permet de changer d'amicaliste sans se déconnecter (le compte reste
+// celui, partagé, de la tournée) : retape l'écran "qui es-tu ?".
+agentBadgeEl.addEventListener("click", async () => {
+  if (modeDemo || vueActuelle !== "app") return;
+  const tournee = await getTournee(tourneeActuelleId);
+  if (!tournee) return;
+  afficherEcranQuiEsTu({ id: tourneeActuelleId, agents: tournee.agents || [] });
+});
 
 // --- Écran "liste des rues" (regroupées par commune) -----------------
 // Statut d'une rue entière, pour la couleur du pavé sur l'écran "toutes les
@@ -451,10 +582,29 @@ async function afficherAccueil() {
 }
 
 paveAccueilTourneeBtn.addEventListener("click", () => afficherListeRues("toutes"));
-paveAccueilCartoBtn.addEventListener("click", () => {
+paveAccueilCartoBtn.addEventListener("click", async () => {
   vueAppInterne = "cartographie";
   masquerToutesLesVuesApp();
   vueCartographieEl.hidden = false;
+
+  cartoLienPdfEl.hidden = true;
+  cartoMessageEl.hidden = false;
+  cartoMessageEl.textContent = "Chargement…";
+
+  if (modeDemo || !tourneeActuelleId) {
+    cartoMessageEl.textContent = "Aucune carte disponible en mode démo.";
+    return;
+  }
+
+  const supabase = await getSupabaseClient();
+  const url = supabase ? await obtenirUrlCartePdf(supabase, tourneeActuelleId) : null;
+  if (url) {
+    cartoLienPdfEl.href = url;
+    cartoLienPdfEl.hidden = false;
+    cartoMessageEl.hidden = true;
+  } else {
+    cartoMessageEl.textContent = "Aucune carte n'a encore été importée pour cette tournée.";
+  }
 });
 paveAccueilComptaBtn.addEventListener("click", () => afficherCompta());
 paveAccueilFinCampagneBtn.addEventListener("click", () => {
@@ -1450,6 +1600,344 @@ async function supprimerDeSupabase(table, id) {
     console.warn(`[supabase] échec de suppression (${table}) :`, error.message);
   }
 }
+
+// --- Écran admin : navigation entre les 3 pavés (Amicalistes / Tournées /
+// Compta) ------------------------------------------------------------------
+let tourneeDetailCourante = null; // id de la tournée affichée dans vue-admin-tournee-detail
+
+function masquerToutesLesVuesAdmin() {
+  vueAdminAccueilEl.hidden = true;
+  vueAdminAgentsEl.hidden = true;
+  vueAdminTourneesEl.hidden = true;
+  vueAdminTourneeDetailEl.hidden = true;
+  vueAdminComptaEl.hidden = true;
+}
+
+function afficherAdminAccueil() {
+  masquerToutesLesVuesAdmin();
+  vueAdminAccueilEl.hidden = false;
+}
+
+// --- Écran admin : Amicalistes --------------------------------------------
+async function afficherAdminAgents() {
+  masquerToutesLesVuesAdmin();
+  vueAdminAgentsEl.hidden = false;
+  await rafraichirListeAgents();
+}
+
+async function rafraichirListeAgents() {
+  const supabase = await getSupabaseClient();
+  if (!supabase) return;
+  adminListeAgentsEl.innerHTML = "<li>Chargement…</li>";
+  try {
+    const agents = await listerAgents(supabase);
+    rendreListeAgents(agents, supabase);
+  } catch (err) {
+    adminListeAgentsEl.innerHTML = `<li>Erreur : ${err.message}</li>`;
+  }
+}
+
+function rendreListeAgents(agents, supabase) {
+  adminListeAgentsEl.innerHTML = "";
+  for (const agent of agents) {
+    const li = document.createElement("li");
+    li.className = "admin-tournee-item";
+    const affectation = agent.tourneeNumeros.length
+      ? `Tournée n°${agent.tourneeNumeros.join(", n°")}`
+      : "Non affecté";
+    const badgeRetire = agent.actif ? "" : ' <span class="badge-retire">Retiré</span>';
+    li.innerHTML = `
+      <div class="admin-tournee-titre">${agent.prenom} ${agent.nom}${badgeRetire}</div>
+      <div class="admin-tournee-meta">${affectation}</div>
+    `;
+    if (agent.actif) {
+      const btnRetirer = document.createElement("button");
+      btnRetirer.type = "button";
+      btnRetirer.className = "bouton-danger";
+      btnRetirer.textContent = "Retirer";
+      btnRetirer.addEventListener("click", async () => {
+        if (
+          !window.confirm(
+            `Retirer ${agent.prenom} ${agent.nom} ? Il ne sera plus sélectionnable pour une tournée, mais son historique de dons est conservé.`
+          )
+        )
+          return;
+        try {
+          await desactiverAgent(supabase, agent.id);
+          rafraichirListeAgents();
+        } catch (err) {
+          window.alert("Erreur : " + err.message);
+        }
+      });
+      li.appendChild(btnRetirer);
+    }
+    adminListeAgentsEl.appendChild(li);
+  }
+}
+
+btnAjouterAgent.addEventListener("click", () => {
+  formNouvelAgent.reset();
+  agentMessageEl.textContent = "";
+  agentMessageEl.className = "connexion-message";
+  dialogNouvelAgent.showModal();
+});
+agentAnnulerBtn.addEventListener("click", () => dialogNouvelAgent.close());
+formNouvelAgent.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const supabase = await getSupabaseClient();
+  if (!supabase) return;
+  try {
+    await creerAgent(supabase, { nom: agentNomInput.value.trim(), prenom: agentPrenomInput.value.trim() });
+    dialogNouvelAgent.close();
+    rafraichirListeAgents();
+  } catch (err) {
+    agentMessageEl.textContent = "Erreur : " + err.message;
+    agentMessageEl.className = "connexion-message erreur";
+  }
+});
+
+// --- Écran admin : Tournées ------------------------------------------------
+async function afficherAdminTournees() {
+  masquerToutesLesVuesAdmin();
+  vueAdminTourneesEl.hidden = false;
+  await rafraichirListeTournees();
+}
+
+async function rafraichirListeTournees() {
+  const supabase = await getSupabaseClient();
+  if (!supabase) return;
+  adminListeTourneesEl.innerHTML = "<li>Chargement…</li>";
+  try {
+    const tournees = await listerTournees(supabase);
+    rendreListeTourneesAdmin(tournees);
+  } catch (err) {
+    adminListeTourneesEl.innerHTML = `<li>Erreur : ${err.message}</li>`;
+  }
+}
+
+function rendreListeTourneesAdmin(tournees) {
+  adminListeTourneesEl.innerHTML = "";
+  for (const t of tournees) {
+    const li = document.createElement("li");
+    li.className = "admin-tournee-item";
+    const pourcentage = t.nombreAdresses ? Math.round((t.nombreTraitees / t.nombreAdresses) * 100) : 0;
+    const agentsHtml = t.agents.map((a) => `<span class="agent-chip">${a.prenom} ${a.nom}</span>`).join("");
+    li.innerHTML = `
+      <div class="admin-tournee-titre">Tournée n°${t.numero} — ${t.nom_rue}, ${t.nom_commune}</div>
+      <div class="admin-tournee-progression">
+        ${t.nombreTraitees} / ${t.nombreAdresses} maisons traitées
+        <div class="progress-bar"><div class="progress-fill" style="width: ${pourcentage}%"></div></div>
+      </div>
+      <div class="admin-tournee-agents">${agentsHtml || "<em>Aucun agent affecté</em>"}</div>
+    `;
+    li.addEventListener("click", () => afficherAdminTourneeDetail(t.id));
+    adminListeTourneesEl.appendChild(li);
+  }
+}
+
+btnAjouterTournee.addEventListener("click", () => {
+  formNouvelleTourneeAdmin.reset();
+  tourneeMessageEl.textContent = "";
+  tourneeMessageEl.className = "connexion-message";
+  dialogNouvelleTourneeAdmin.showModal();
+});
+tourneeAnnulerBtn.addEventListener("click", () => dialogNouvelleTourneeAdmin.close());
+tourneeGenererMdpBtn.addEventListener("click", () => {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZabcdefghijkmnpqrstuvwxyz23456789";
+  let mdp = "";
+  for (let i = 0; i < 10; i++) mdp += alphabet[Math.floor(Math.random() * alphabet.length)];
+  tourneeMotDePasseInput.value = mdp;
+});
+formNouvelleTourneeAdmin.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const supabase = await getSupabaseClient();
+  if (!supabase) return;
+  tourneeMessageEl.textContent = "Création en cours…";
+  tourneeMessageEl.className = "connexion-message";
+  try {
+    await creerTourneeDistante(supabase, {
+      numero: parseInt(tourneeNumeroInput.value, 10),
+      nomCommune: tourneeCommuneInput.value.trim(),
+      nomRue: tourneeRueInput.value.trim(),
+      email: tourneeEmailInput.value.trim(),
+      motDePasse: tourneeMotDePasseInput.value,
+    });
+    dialogNouvelleTourneeAdmin.close();
+    rafraichirListeTournees();
+  } catch (err) {
+    tourneeMessageEl.textContent = "Erreur : " + err.message;
+    tourneeMessageEl.className = "connexion-message erreur";
+  }
+});
+
+// --- Écran admin : détail d'une tournée ------------------------------------
+async function afficherAdminTourneeDetail(tourneeId) {
+  tourneeDetailCourante = tourneeId;
+  masquerToutesLesVuesAdmin();
+  vueAdminTourneeDetailEl.hidden = false;
+  await rafraichirAdminTourneeDetail();
+}
+
+async function rafraichirAdminTourneeDetail() {
+  const supabase = await getSupabaseClient();
+  if (!supabase || !tourneeDetailCourante) return;
+
+  const [tournees, agents] = await Promise.all([listerTournees(supabase), listerAgents(supabase)]);
+  const tournee = tournees.find((t) => t.id === tourneeDetailCourante);
+  if (!tournee) {
+    afficherAdminTournees();
+    return;
+  }
+
+  adminTourneeDetailTitreEl.textContent = `Tournée n°${tournee.numero} — ${tournee.nom_rue}, ${tournee.nom_commune}`;
+  adminTourneeDetailCompteurEl.textContent = formaterCompteur(tournee.nombreTraitees, tournee.nombreAdresses);
+  const pourcentage = tournee.nombreAdresses ? Math.round((tournee.nombreTraitees / tournee.nombreAdresses) * 100) : 0;
+  adminTourneeDetailProgressEl.style.width = `${pourcentage}%`;
+
+  // Amicalistes affectés (avec retrait) + formulaire d'affectation (seuls
+  // les actifs pas déjà affectés apparaissent dans le menu déroulant).
+  adminTourneeDetailAgentsEl.innerHTML = tournee.agents.length
+    ? tournee.agents
+        .map(
+          (a) =>
+            `<span class="agent-chip">${a.prenom} ${a.nom} <button type="button" data-retirer="${a.id}">×</button></span>`
+        )
+        .join("")
+    : "<em>Aucun agent affecté</em>";
+  adminTourneeDetailAgentsEl.querySelectorAll("[data-retirer]").forEach((btn) => {
+    btn.addEventListener("click", async () => {
+      try {
+        await retirerAgent(supabase, tourneeDetailCourante, btn.dataset.retirer);
+        rafraichirAdminTourneeDetail();
+      } catch (err) {
+        window.alert("Erreur : " + err.message);
+      }
+    });
+  });
+
+  const dejaAffectes = new Set(tournee.agents.map((a) => a.id));
+  const optionsDisponibles = agents.filter((a) => a.actif && !dejaAffectes.has(a.id));
+  adminTourneeDetailAssignEl.innerHTML = "";
+  if (optionsDisponibles.length > 0) {
+    const select = document.createElement("select");
+    select.innerHTML = optionsDisponibles
+      .map((a) => `<option value="${a.id}">${a.prenom} ${a.nom}</option>`)
+      .join("");
+    const btnAssign = document.createElement("button");
+    btnAssign.type = "button";
+    btnAssign.className = "secondaire";
+    btnAssign.textContent = "Affecter";
+    btnAssign.addEventListener("click", async () => {
+      try {
+        await affecterAgent(supabase, tourneeDetailCourante, select.value);
+        rafraichirAdminTourneeDetail();
+      } catch (err) {
+        window.alert("Erreur : " + err.message);
+      }
+    });
+    adminTourneeDetailAssignEl.append(select, btnAssign);
+  }
+
+  await rafraichirCartePdf(supabase);
+}
+
+async function rafraichirCartePdf(supabase) {
+  adminCarteLienEl.hidden = true;
+  btnSupprimerCarte.hidden = true;
+  adminCarteStatutEl.textContent = "Vérification…";
+
+  const url = await obtenirUrlCartePdf(supabase, tourneeDetailCourante);
+  if (url) {
+    adminCarteStatutEl.textContent = "Une carte a été importée pour cette tournée.";
+    adminCarteLienEl.href = url;
+    adminCarteLienEl.hidden = false;
+    btnSupprimerCarte.hidden = false;
+  } else {
+    adminCarteStatutEl.textContent = "Aucune carte importée pour l'instant.";
+  }
+}
+
+btnRetourAdminTournees.addEventListener("click", () => afficherAdminTournees());
+
+btnImporterCarte.addEventListener("click", () => adminCarteFichierInput.click());
+adminCarteFichierInput.addEventListener("change", async () => {
+  const fichier = adminCarteFichierInput.files[0];
+  adminCarteFichierInput.value = "";
+  if (!fichier || !tourneeDetailCourante) return;
+
+  const supabase = await getSupabaseClient();
+  if (!supabase) return;
+  adminCarteStatutEl.textContent = "Import en cours…";
+  try {
+    await uploaderCartePdf(supabase, tourneeDetailCourante, fichier);
+  } catch (err) {
+    window.alert("Erreur : " + err.message);
+  }
+  await rafraichirCartePdf(supabase);
+});
+
+btnSupprimerCarte.addEventListener("click", async () => {
+  if (!window.confirm("Supprimer la carte PDF de cette tournée ?")) return;
+  const supabase = await getSupabaseClient();
+  if (!supabase || !tourneeDetailCourante) return;
+  try {
+    await supprimerCartePdf(supabase, tourneeDetailCourante);
+  } catch (err) {
+    window.alert("Erreur : " + err.message);
+  }
+  await rafraichirCartePdf(supabase);
+});
+
+btnSupprimerTournee.addEventListener("click", async () => {
+  const supabase = await getSupabaseClient();
+  if (!supabase || !tourneeDetailCourante) return;
+  const tournees = await listerTournees(supabase);
+  const tournee = tournees.find((t) => t.id === tourneeDetailCourante);
+  if (!tournee) return;
+
+  supprTourneeNumeroCibleEl.textContent = tournee.numero;
+  supprTourneeNumeroSaisiInput.value = "";
+  supprTourneeMessageEl.textContent = "";
+  supprTourneeMessageEl.className = "connexion-message";
+  dialogConfirmerSuppressionTournee.showModal();
+});
+
+supprTourneeAnnulerBtn.addEventListener("click", () => dialogConfirmerSuppressionTournee.close());
+
+formConfirmerSuppressionTournee.addEventListener("submit", async (event) => {
+  event.preventDefault();
+  const supabase = await getSupabaseClient();
+  if (!supabase || !tourneeDetailCourante) return;
+
+  if (supprTourneeNumeroSaisiInput.value.trim() !== supprTourneeNumeroCibleEl.textContent.trim()) {
+    supprTourneeMessageEl.textContent = "Le numéro saisi ne correspond pas.";
+    supprTourneeMessageEl.className = "connexion-message erreur";
+    return;
+  }
+
+  supprTourneeMessageEl.textContent = "Suppression en cours…";
+  supprTourneeMessageEl.className = "connexion-message";
+  try {
+    await supprimerTourneeDistante(supabase, tourneeDetailCourante);
+    dialogConfirmerSuppressionTournee.close();
+    tourneeDetailCourante = null;
+    afficherAdminTournees();
+  } catch (err) {
+    supprTourneeMessageEl.textContent = "Erreur : " + err.message;
+    supprTourneeMessageEl.className = "connexion-message erreur";
+  }
+});
+
+// --- Écran admin : Compta (à venir) -----------------------------------
+function afficherAdminCompta() {
+  masquerToutesLesVuesAdmin();
+  vueAdminComptaEl.hidden = false;
+}
+
+paveAdminAgentsBtn.addEventListener("click", () => afficherAdminAgents());
+paveAdminTourneesBtn.addEventListener("click", () => afficherAdminTournees());
+paveAdminComptaBtn.addEventListener("click", () => afficherAdminCompta());
+boutonsRetourAdminAccueil.forEach((btn) => btn.addEventListener("click", () => afficherAdminAccueil()));
 
 // --- Démarrage ---------------------------------------------------------
 async function demarrer() {

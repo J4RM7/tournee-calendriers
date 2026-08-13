@@ -110,6 +110,10 @@ body {
 .badge.online { background: var(--vert); }
 .badge.offline { background: var(--gris); }
 
+#agent-badge {
+  cursor: pointer;
+}
+
 main,
 #ecran-admin {
   padding: 1rem;
@@ -174,6 +178,7 @@ main,
 .pave-accueil-carto { background: #e8f1fc; }
 .pave-accueil-compta { background: #e7f6ec; }
 .pave-accueil-fin { background: #fff4e0; }
+.pave-accueil-agents { background: #f5ebe0; }
 
 .admin-tournee-progression {
   font-size: 0.78rem;
@@ -632,10 +637,18 @@ dialog::backdrop {
   margin-top: 1rem;
 }
 
-#ecran-connexion {
+#ecran-connexion,
+#ecran-qui-es-tu {
   display: flex;
   justify-content: center;
   padding: 2rem 1rem;
+}
+
+.qui-es-tu-liste {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  margin-top: 1rem;
 }
 
 .connexion-carte {
@@ -801,6 +814,18 @@ dialog::backdrop {
   border: 1px solid var(--bordure);
   border-radius: 6px;
   font: inherit;
+}
+
+.badge-retire {
+  display: inline-block;
+  margin-left: 0.4rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: var(--gris);
+  background: var(--fond);
+  border: 1px solid var(--bordure);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
 }
 
 /* --- Onglets (pavé Tournée : Toutes / Repasses / A faire) --------------- */
