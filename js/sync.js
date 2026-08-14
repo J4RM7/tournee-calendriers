@@ -12,7 +12,9 @@ export async function synchroniserDonneesAgent(supabase, agent) {
   // clés étrangères déclarées dans schema.sql.
   const { data: tournees, error } = await supabase
     .from("tournees")
-    .select("*, tournee_agents(agents(id, nom, prenom)), communes(*, rues(*, adresses(*)))");
+    .select(
+      "*, tournee_agents(agents(id, nom, prenom)), communes(*, rues(*, adresses(*, laisses_boite(*)))), depots(*)"
+    );
 
   if (error) throw error;
 
@@ -34,9 +36,17 @@ export async function synchroniserDonneesAgent(supabase, agent) {
         await put("rues", rueSansAdresses);
 
         for (const adresse of adresses || []) {
-          await put("adresses", adresse);
+          const { laisses_boite, ...adresseSansLc } = adresse;
+          await put("adresses", adresseSansLc);
+          for (const lc of laisses_boite || []) {
+            await put("laisses_boite", lc);
+          }
         }
       }
+    }
+
+    for (const depot of t.depots || []) {
+      await put("depots", depot);
     }
   }
 

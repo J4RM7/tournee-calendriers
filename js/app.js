@@ -25,11 +25,16 @@ import {
   estAdresseValidee,
   reordonnerAdresses,
   reordonnerRues,
+  addDepot,
+  getDepotsByTournee,
+  getLcByAdresse,
+  enregistrerLc,
+  trouverLcPourAnnee,
   DEMO_TOURNEE_ID,
   DEMO_AGENT_ID,
 } from "./db.js";
 import { getSupabaseClient } from "./supabaseClient.js";
-import { exporterPDF, exporterExcel } from "./export.js";
+import { exporterPDF, exporterExcel, genererRapportDepot } from "./export.js";
 import {
   getSession,
   connecterAvecMotDePasse,
@@ -51,6 +56,7 @@ import {
   uploaderCartePdf,
   obtenirUrlCartePdf,
   supprimerCartePdf,
+  listerDepotsTournee,
 } from "./admin.js";
 
 const PROCHAIN_ETAT_PASSAGE = { a_faire: "passe", passe: "absent", absent: "a_faire" };
@@ -70,10 +76,17 @@ const vueCartographieEl = document.getElementById("vue-cartographie");
 const cartoMessageEl = document.getElementById("carto-message");
 const cartoLienPdfEl = document.getElementById("carto-lien-pdf");
 const vueComptaEl = document.getElementById("vue-compta");
-const comptaNbEspecesEl = document.getElementById("compta-nb-especes");
-const comptaTotalEspecesEl = document.getElementById("compta-total-especes");
-const comptaNbChequesEl = document.getElementById("compta-nb-cheques");
-const comptaTotalChequesEl = document.getElementById("compta-total-cheques");
+const comptaDenominationsEl = document.getElementById("compta-denominations");
+const comptaTotalEspecesCompteEl = document.getElementById("compta-total-especes-compte");
+const comptaStepperChequesEl = document.getElementById("compta-stepper-cheques");
+const comptaMontantChequesInput = document.getElementById("compta-montant-cheques");
+const comptaTotalCompteEl = document.getElementById("compta-total-compte");
+const comptaTotalAttenduEl = document.getElementById("compta-total-attendu");
+const comptaEcartEl = document.getElementById("compta-ecart");
+const btnConfirmerDepot = document.getElementById("btn-confirmer-depot");
+const comptaMessageEl = document.getElementById("compta-message");
+const comptaHistoriqueDepotsEl = document.getElementById("compta-historique-depots");
+const comptaHistoriqueVideEl = document.getElementById("compta-historique-vide");
 const vueFinCampagneAgentEl = document.getElementById("vue-fin-campagne-agent");
 const btnExportPdfAgent = document.getElementById("btn-export-pdf-agent");
 const btnExportExcelAgent = document.getElementById("btn-export-excel-agent");
@@ -87,6 +100,8 @@ const statMaisonsRestantesEl = document.getElementById("stat-maisons-restantes")
 const statBarresAnneesEl = document.getElementById("stat-barres-annees");
 const statNbDonateursEl = document.getElementById("stat-nb-donateurs");
 const statNbRefusEl = document.getElementById("stat-nb-refus");
+const statNbAbsentsEl = document.getElementById("stat-nb-absents");
+const statNbLcEl = document.getElementById("stat-nb-lc");
 const statTauxAcceptationEl = document.getElementById("stat-taux-acceptation");
 const statRepartitionDonsEl = document.getElementById("stat-repartition-dons");
 const statRepartitionRefusEl = document.getElementById("stat-repartition-refus");
@@ -102,6 +117,9 @@ const ongletToutesEl = document.getElementById("onglet-toutes");
 const ongletRepassesEl = document.getElementById("onglet-repasses");
 const ongletAFaireEl = document.getElementById("onglet-a-faire");
 const ongletVideEl = document.getElementById("onglet-vide");
+const ongletCompteurToutesEl = document.getElementById("onglet-compteur-toutes");
+const ongletCompteurRepassesEl = document.getElementById("onglet-compteur-repasses");
+const ongletCompteurAFaireEl = document.getElementById("onglet-compteur-a-faire");
 const communesContainerEl = document.getElementById("communes-container");
 const btnAjouterCommune = document.getElementById("btn-ajouter-commune");
 
@@ -152,6 +170,8 @@ const adminTourneeDetailCompteurEl = document.getElementById("admin-tournee-deta
 const adminTourneeDetailProgressEl = document.getElementById("admin-tournee-detail-progress");
 const adminTourneeDetailAgentsEl = document.getElementById("admin-tournee-detail-agents");
 const adminTourneeDetailAssignEl = document.getElementById("admin-tournee-detail-assign");
+const adminTourneeDetailDepotsEl = document.getElementById("admin-tournee-detail-depots");
+const adminTourneeDetailDepotsVideEl = document.getElementById("admin-tournee-detail-depots-vide");
 const adminCarteStatutEl = document.getElementById("admin-carte-statut");
 const btnImporterCarte = document.getElementById("btn-importer-carte");
 const adminCarteLienEl = document.getElementById("admin-carte-lien");
@@ -202,6 +222,11 @@ const paveEspecesBtn = document.getElementById("pave-especes");
 const paveChequeBtn = document.getElementById("pave-cheque");
 const paveRecuBtn = document.getElementById("pave-recu");
 const donReinitialiserBtn = document.getElementById("don-reinitialiser");
+
+const dialogLc = document.getElementById("dialog-lc");
+const formLc = document.getElementById("form-lc");
+const pavesLcEl = document.getElementById("pavés-lc");
+const lcAnnulerBtn = document.getElementById("lc-annuler");
 
 const dialogAdresse = document.getElementById("dialog-adresse");
 const formAdresse = document.getElementById("form-adresse");
@@ -549,12 +574,26 @@ async function calculerStatistiquesTournee(tourneeId) {
   let totalPrecedent = 0;
   let nbDonateurs = 0;
   let nbRefus = 0;
+  let nbAbsents = 0;
+  let nbLc = 0;
   let maisonsValidees = 0;
   const totauxParAnnee = new Map();
 
   for (const { adresse } of items) {
     const dons = await getDonsByAdresse(adresse.id);
     if (estAdresseValidee(adresse, dons)) maisonsValidees++;
+    // "Absents" en temps réel : au moins un passage sans réponse, mais pas
+    // encore de passage réussi (une maison n'est pas "absente" une fois
+    // qu'on a réussi à parler à quelqu'un, même si les 3 passages y sont
+    // passés).
+    if (statutValidationAdresse(adresse) === "attente") nbAbsents++;
+
+    // "LC" : les 3 passages sont des absences et un enregistrement existe
+    // pour l'année en cours (calendrier/avis de passage/enveloppe T laissés).
+    if (statutValidationAdresse(adresse) === "validee" && !auMoinsUnPassageReussi(adresse)) {
+      const lcs = await getLcByAdresse(adresse.id);
+      if (trouverLcPourAnnee(lcs, anneeCourante)) nbLc++;
+    }
 
     const donCourant = trouverDonPourAnnee(dons, anneeCourante);
     const donPrecedent = trouverDonPourAnnee(dons, anneeCourante - 1);
@@ -583,7 +622,17 @@ async function calculerStatistiquesTournee(tourneeId) {
     historique.push({ annee, total: totauxParAnnee.get(annee) ?? 0 });
   }
 
-  return { totalCourant, totalPrecedent, nbDonateurs, nbRefus, totalMaisons: items.length, maisonsValidees, historique };
+  return {
+    totalCourant,
+    totalPrecedent,
+    nbDonateurs,
+    nbRefus,
+    nbAbsents,
+    nbLc,
+    totalMaisons: items.length,
+    maisonsValidees,
+    historique,
+  };
 }
 
 // --- Page d'accueil (pavés) -----------------------------------------------
@@ -651,7 +700,17 @@ async function afficherStatistiques() {
 
   const stats = tourneeActuelleId
     ? await calculerStatistiquesTournee(tourneeActuelleId)
-    : { totalCourant: 0, totalPrecedent: 0, nbDonateurs: 0, nbRefus: 0, totalMaisons: 0, maisonsValidees: 0, historique: [] };
+    : {
+        totalCourant: 0,
+        totalPrecedent: 0,
+        nbDonateurs: 0,
+        nbRefus: 0,
+        nbAbsents: 0,
+        nbLc: 0,
+        totalMaisons: 0,
+        maisonsValidees: 0,
+        historique: [],
+      };
 
   // Anneau de progression de la tournée.
   const pourcentage = stats.totalMaisons ? Math.round((stats.maisonsValidees / stats.totalMaisons) * 100) : 0;
@@ -707,6 +766,8 @@ async function afficherStatistiques() {
   // Donateurs / refus, avec une barre de répartition visuelle.
   statNbDonateursEl.textContent = String(stats.nbDonateurs);
   statNbRefusEl.textContent = String(stats.nbRefus);
+  statNbAbsentsEl.textContent = String(stats.nbAbsents);
+  statNbLcEl.textContent = String(stats.nbLc);
 
   const totalReponses = stats.nbDonateurs + stats.nbRefus;
   const partDons = totalReponses ? Math.round((stats.nbDonateurs / totalReponses) * 100) : 0;
@@ -742,20 +803,209 @@ async function calculerComptaTournee(tourneeId) {
   return { nbEspeces, totalEspeces, nbCheques, totalCheques };
 }
 
+// Dénominations officielles en euros (pièces puis billets). Les couleurs des
+// billets reprennent les teintes officielles (5€ gris, 10€ rouge, 20€ bleu,
+// 50€ orange, 100€ vert) pour que l'icône stylisée reste reconnaissable sans
+// utiliser de vraie photo.
+const DENOMINATIONS = [
+  { valeur: 0.01, label: "1 c", type: "piece", couleur: "#c68a4e" },
+  { valeur: 0.02, label: "2 c", type: "piece", couleur: "#c68a4e" },
+  { valeur: 0.05, label: "5 c", type: "piece", couleur: "#c68a4e" },
+  { valeur: 0.1, label: "10 c", type: "piece", couleur: "#d9b34a" },
+  { valeur: 0.2, label: "20 c", type: "piece", couleur: "#d9b34a" },
+  { valeur: 0.5, label: "50 c", type: "piece", couleur: "#d9b34a" },
+  { valeur: 1, label: "1 €", type: "piece", couleur: "#b0b0b0" },
+  { valeur: 2, label: "2 €", type: "piece", couleur: "#8d8d8d" },
+  { valeur: 5, label: "5 €", type: "billet", couleur: "#8c8c7a" },
+  { valeur: 10, label: "10 €", type: "billet", couleur: "#c0392b" },
+  { valeur: 20, label: "20 €", type: "billet", couleur: "#2980b9" },
+  { valeur: 50, label: "50 €", type: "billet", couleur: "#e67e22" },
+  { valeur: 100, label: "100 €", type: "billet", couleur: "#27ae60" },
+];
+
+function svgIcone(denom) {
+  return denom.type === "piece"
+    ? `<svg viewBox="0 0 32 32" width="32" height="32" aria-hidden="true"><circle cx="16" cy="16" r="14" fill="${denom.couleur}" stroke="rgba(0,0,0,0.15)" /></svg>`
+    : `<svg viewBox="0 0 32 32" width="32" height="32" aria-hidden="true"><rect x="2" y="8" width="28" height="16" rx="6" fill="${denom.couleur}" stroke="rgba(0,0,0,0.15)" /></svg>`;
+}
+
+// Composant -/valeur/+ générique, réutilisé pour chaque ligne de dénomination
+// et pour le compteur de chèques. reset() passe par définir() plutôt que de
+// remettre le texte à la main, pour que onChange (et donc l'état tally +
+// le recalcul des totaux) reste toujours synchronisé avec l'affichage.
+function brancherStepper(el, { onChange }) {
+  let valeur = 0;
+  const valeurEl = el.querySelector(".stepper-valeur");
+  const definir = (nouvelleValeur) => {
+    valeur = Math.max(0, nouvelleValeur);
+    valeurEl.textContent = String(valeur);
+    onChange(valeur);
+  };
+  el.querySelector(".stepper-moins").addEventListener("click", () => definir(valeur - 1));
+  el.querySelector(".stepper-plus").addEventListener("click", () => definir(valeur + 1));
+  return { get: () => valeur, reset: () => definir(0) };
+}
+
+let tallyEspeces = new Map(DENOMINATIONS.map((d) => [d.valeur, 0]));
+let comptaTotalAttenduActuel = 0;
+let denominationsControleurs = [];
+
+// Construites une seule fois (les <li> sont des noeuds DOM stables) : chaque
+// nouvelle visite de l'écran Compta se contente de réinitialiser leur valeur
+// via reinitialiserComptage(), voir afficherCompta().
+function rendreDenominations() {
+  if (denominationsControleurs.length > 0) return;
+
+  comptaDenominationsEl.innerHTML = "";
+  denominationsControleurs = DENOMINATIONS.map((denom) => {
+    const li = document.createElement("li");
+    li.className = "compta-denomination-row";
+    li.dataset.valeur = String(denom.valeur);
+    li.innerHTML = `
+      <span class="compta-denomination-icone">${svgIcone(denom)}</span>
+      <span class="compta-denomination-label">${denom.label}</span>
+      <div class="stepper">
+        <button type="button" class="stepper-moins">−</button>
+        <span class="stepper-valeur">0</span>
+        <button type="button" class="stepper-plus">+</button>
+      </div>
+      <span class="compta-denomination-sous-total">0,00 €</span>
+    `;
+    const sousTotalEl = li.querySelector(".compta-denomination-sous-total");
+    const controleur = brancherStepper(li.querySelector(".stepper"), {
+      onChange: (quantite) => {
+        tallyEspeces.set(denom.valeur, quantite);
+        sousTotalEl.textContent = formaterMontant(quantite * denom.valeur);
+        recalculerTotaux();
+      },
+    });
+    comptaDenominationsEl.appendChild(li);
+    return controleur;
+  });
+}
+
+const stepperCheques = brancherStepper(comptaStepperChequesEl, {
+  onChange: () => recalculerTotaux(),
+});
+comptaMontantChequesInput.addEventListener("input", () => recalculerTotaux());
+
+function reinitialiserComptage() {
+  denominationsControleurs.forEach((c) => c.reset());
+  stepperCheques.reset();
+  comptaMontantChequesInput.value = "0";
+  recalculerTotaux();
+}
+
+function recalculerTotaux() {
+  let totalEspeces = 0;
+  for (const [valeur, quantite] of tallyEspeces) totalEspeces += valeur * quantite;
+  comptaTotalEspecesCompteEl.textContent = formaterMontant(totalEspeces);
+
+  const montantCheques = Number(comptaMontantChequesInput.value) || 0;
+  const totalCompte = totalEspeces + montantCheques;
+  comptaTotalCompteEl.textContent = formaterMontant(totalCompte);
+  comptaTotalAttenduEl.textContent = formaterMontant(comptaTotalAttenduActuel);
+
+  const ecart = totalCompte - comptaTotalAttenduActuel;
+  comptaEcartEl.className = "compta-ecart " + (Math.abs(ecart) < 0.01 ? "ok" : ecart > 0 ? "sur" : "sous");
+  comptaEcartEl.textContent =
+    Math.abs(ecart) < 0.01
+      ? "Le comptage correspond au montant attendu."
+      : `Écart : ${ecart > 0 ? "+" : ""}${formaterMontant(ecart)} par rapport à l'attendu`;
+
+  return { totalEspeces, montantCheques, totalCompte };
+}
+
+function formaterDateDepot(iso) {
+  return new Date(iso).toLocaleString("fr-FR", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+}
+
+async function rafraichirHistoriqueDepots() {
+  const depots = tourneeActuelleId ? await getDepotsByTournee(tourneeActuelleId) : [];
+  depots.sort((a, b) => new Date(b.date) - new Date(a.date));
+
+  comptaHistoriqueDepotsEl.innerHTML = "";
+  comptaHistoriqueVideEl.hidden = depots.length > 0;
+
+  for (const depot of depots) {
+    const li = document.createElement("li");
+    const total = depot.montant_especes + depot.montant_cheques;
+    li.innerHTML = `<span>${formaterDateDepot(depot.date)}</span><span>${formaterMontant(total)}</span>`;
+    comptaHistoriqueDepotsEl.appendChild(li);
+  }
+}
+
 async function afficherCompta() {
   vueAppInterne = "compta";
   masquerToutesLesVuesApp();
   vueComptaEl.hidden = false;
 
+  rendreDenominations();
+  reinitialiserComptage();
+
+  comptaMessageEl.textContent = "";
+  comptaMessageEl.className = "connexion-message";
+
   const compta = tourneeActuelleId
     ? await calculerComptaTournee(tourneeActuelleId)
     : { nbEspeces: 0, totalEspeces: 0, nbCheques: 0, totalCheques: 0 };
+  comptaTotalAttenduActuel = compta.totalEspeces + compta.totalCheques;
+  recalculerTotaux();
 
-  comptaNbEspecesEl.textContent = String(compta.nbEspeces);
-  comptaTotalEspecesEl.textContent = formaterMontant(compta.totalEspeces);
-  comptaNbChequesEl.textContent = String(compta.nbCheques);
-  comptaTotalChequesEl.textContent = formaterMontant(compta.totalCheques);
+  await rafraichirHistoriqueDepots();
 }
+
+btnConfirmerDepot.addEventListener("click", async () => {
+  if (!tourneeActuelleId) return;
+
+  const { totalEspeces, montantCheques } = recalculerTotaux();
+  if (totalEspeces <= 0 && montantCheques <= 0) {
+    comptaMessageEl.textContent = "Rien à déposer : comptez au moins une pièce, un billet ou un chèque.";
+    comptaMessageEl.className = "connexion-message erreur";
+    return;
+  }
+
+  const confirme = window.confirm(
+    `Confirmer le dépôt de ${formaterMontant(totalEspeces + montantCheques)} ` +
+      `(${formaterMontant(totalEspeces)} en espèces + ${formaterMontant(montantCheques)} en chèques) ? ` +
+      `Le comptage sera remis à zéro.`
+  );
+  if (!confirme) return;
+
+  const detailEspeces = [...tallyEspeces.entries()]
+    .filter(([, quantite]) => quantite > 0)
+    .map(([valeur, quantite]) => ({ valeur, quantite }));
+
+  const depot = await addDepot({
+    tournee_id: tourneeActuelleId,
+    agent_id: agentActuel?.id ?? null,
+    montant_especes: totalEspeces,
+    montant_cheques: montantCheques,
+    nb_cheques: stepperCheques.get(),
+    detail_especes: detailEspeces,
+  });
+
+  await pousserVersSupabase("depots", depot);
+
+  comptaMessageEl.textContent = "Dépôt enregistré.";
+  comptaMessageEl.className = "connexion-message succes";
+
+  try {
+    const tournee = await getTournee(tourneeActuelleId);
+    await genererRapportDepot(depot, tournee);
+  } catch (err) {
+    console.error("Erreur lors de la génération du reçu de dépôt :", err);
+  }
+
+  reinitialiserComptage();
+  await rafraichirHistoriqueDepots();
+});
 
 // --- Écran Recherche -------------------------------------------------------
 function normaliserTexte(texte) {
@@ -779,7 +1029,8 @@ async function rechercherAdresses(terme) {
   rechercheVideEl.hidden = resultats.length > 0;
   for (const { adresse, rue, commune } of resultats) {
     const dons = await getDonsByAdresse(adresse.id);
-    const li = creerLigneAdresse(adresse, dons, rue, commune);
+    const lcs = await getLcByAdresse(adresse.id);
+    const li = creerLigneAdresse(adresse, dons, rue, commune, lcs);
     // On peut traiter la maison directement depuis le résultat (cases de
     // passage, don) — mais cliquer ailleurs sur la ligne amène sur sa rue,
     // pour voir les maisons voisines ou la renommer si besoin.
@@ -876,6 +1127,33 @@ async function afficherListeRues(onglet) {
   ongletVideEl.hidden = true;
 
   await rendreOngletActuel();
+  await rafraichirCompteursOnglets();
+}
+
+// Une maison peut compter à la fois dans "Repasses" et "A faire" (passage
+// réussi mais don pas encore saisi) : voir les prédicats de
+// rendreOngletActuel, repris ici à l'identique pour que les compteurs
+// correspondent exactement au contenu de chaque onglet.
+async function rafraichirCompteursOnglets() {
+  if (!tourneeActuelleId) {
+    ongletCompteurToutesEl.textContent = "0";
+    ongletCompteurRepassesEl.textContent = "0";
+    ongletCompteurAFaireEl.textContent = "0";
+    return;
+  }
+
+  const items = await obtenirAdressesTournee(tourneeActuelleId);
+  let repasses = 0;
+  let aFaire = 0;
+  for (const { adresse } of items) {
+    const dons = await getDonsByAdresse(adresse.id);
+    if (statutValidationAdresse(adresse) === "attente" || donManquantMalgrePassage(adresse, dons)) repasses++;
+    if (statutValidationAdresse(adresse) === "neutre" || donManquantMalgrePassage(adresse, dons)) aFaire++;
+  }
+
+  ongletCompteurToutesEl.textContent = String(items.length);
+  ongletCompteurRepassesEl.textContent = String(repasses);
+  ongletCompteurAFaireEl.textContent = String(aFaire);
 }
 
 ongletsTourneeEl.querySelectorAll(".onglet").forEach((btn) => {
@@ -941,7 +1219,11 @@ async function rendreOngletFiltre(container, predicate) {
   const items = await obtenirAdressesTournee(tourneeActuelleId);
   const avecDons = [];
   for (const item of items) {
-    avecDons.push({ ...item, dons: await getDonsByAdresse(item.adresse.id) });
+    avecDons.push({
+      ...item,
+      dons: await getDonsByAdresse(item.adresse.id),
+      lcs: await getLcByAdresse(item.adresse.id),
+    });
   }
 
   const filtres = avecDons.filter(({ adresse, dons }) => predicate(adresse, dons));
@@ -959,8 +1241,8 @@ async function rendreOngletFiltre(container, predicate) {
     return;
   }
 
-  for (const { adresse, rue, commune, dons } of filtres) {
-    container.appendChild(creerLigneAdresse(adresse, dons, rue, commune));
+  for (const { adresse, rue, commune, dons, lcs } of filtres) {
+    container.appendChild(creerLigneAdresse(adresse, dons, rue, commune, lcs));
   }
 }
 
@@ -1084,7 +1366,11 @@ async function rendreRueDetail() {
   adresses.sort((a, b) => (a.ordre ?? 0) - (b.ordre ?? 0));
 
   const donsParAdresse = new Map();
-  for (const adresse of adresses) donsParAdresse.set(adresse.id, await getDonsByAdresse(adresse.id));
+  const lcsParAdresse = new Map();
+  for (const adresse of adresses) {
+    donsParAdresse.set(adresse.id, await getDonsByAdresse(adresse.id));
+    lcsParAdresse.set(adresse.id, await getLcByAdresse(adresse.id));
+  }
 
   const total = adresses.length;
   const traitees = adresses.filter((a) => estAdresseValidee(a, donsParAdresse.get(a.id))).length;
@@ -1100,11 +1386,13 @@ async function rendreRueDetail() {
     return;
   }
   for (const adresse of adresses) {
-    rueDetailListeEl.appendChild(creerLigneAdresse(adresse, donsParAdresse.get(adresse.id), rue, commune));
+    rueDetailListeEl.appendChild(
+      creerLigneAdresse(adresse, donsParAdresse.get(adresse.id), rue, commune, lcsParAdresse.get(adresse.id))
+    );
   }
 }
 
-function creerLigneAdresse(adresse, dons, rue, commune) {
+function creerLigneAdresse(adresse, dons, rue, commune, lcs = []) {
   const li = document.createElement("li");
   // Le fond de la carte affine le statut passage-only : une maison "validée"
   // dont le don n'est pas encore saisi garde une couleur à part (orange),
@@ -1160,31 +1448,41 @@ function creerLigneAdresse(adresse, dons, rue, commune) {
   // côté don. Un don déjà existant reste toujours modifiable/réinitialisable,
   // même si les passages ont depuis été remis à "à faire".
   const auMoinsUnPasse = auMoinsUnPassageReussi(adresse);
+  // Les 3 passages sont des absences : plus rien à espérer côté don cette
+  // année, la case "Don" devient "LC" (ce qui a été laissé dans la boîte
+  // aux lettres) — mêmes règles d'attention (orange clignotant tant que rien
+  // n'est saisi, vert une fois enregistré) que la case Don.
+  const troisAbsences = statutBase === "validee" && !auMoinsUnPasse;
+  const lcActif = troisAbsences ? trouverLcPourAnnee(lcs, anneeCourante) : null;
+
   const donBtn = document.createElement("button");
   donBtn.type = "button";
-  if (donActif?.refuse) {
+  if (troisAbsences) {
+    donBtn.className = lcActif ? "don-cell don-donne" : "don-cell a-remplir";
+    donBtn.textContent = "LC";
+    donBtn.addEventListener("click", () => ouvrirDialogLc(adresse, lcActif));
+  } else if (donActif?.refuse) {
     donBtn.className = "don-cell don-refuse";
     donBtn.textContent = "Refusé";
+    donBtn.addEventListener("click", () => ouvrirDialogDon(adresse, dons));
   } else if (donActif) {
     donBtn.className = "don-cell don-donne";
     donBtn.textContent = formaterMontant(donActif.montant);
+    donBtn.addEventListener("click", () => ouvrirDialogDon(adresse, dons));
   } else if (auMoinsUnPasse) {
     // Contact réussi mais rien de saisi encore : on le met en évidence tout
     // de suite pour que l'agent pense à remplir le don pendant qu'il est
     // encore sur le pas de la porte.
     donBtn.className = "don-cell a-remplir";
     donBtn.textContent = "Don";
+    donBtn.addEventListener("click", () => ouvrirDialogDon(adresse, dons));
   } else {
     donBtn.className = "don-cell";
     donBtn.textContent = "Don";
-  }
-  donBtn.addEventListener("click", () => {
-    if (!donActif && !auMoinsUnPasse) {
+    donBtn.addEventListener("click", () => {
       window.alert("Marque d'abord un passage réussi (case verte) avant de saisir un don.");
-      return;
-    }
-    ouvrirDialogDon(adresse, dons);
-  });
+    });
+  }
 
   const ligneDon = document.createElement("div");
   ligneDon.className = "don-ligne";
@@ -1679,6 +1977,39 @@ formDon.addEventListener("submit", async (event) => {
   rafraichirVueApp();
 });
 
+// --- Dialogue "Laissés dans la boîte à lettre" (case LC) -------------------
+// Les 3 pavés sont cochés (verts) par défaut à l'ouverture — ou reprennent
+// l'enregistrement existant si on rouvre une case LC déjà validée.
+function ouvrirDialogLc(adresse, lcExistant) {
+  adresseCourante = adresse;
+  pavesLcEl.querySelectorAll(".pave").forEach((btn) => {
+    const valeur = lcExistant ? lcExistant[btn.dataset.lc] !== false : true;
+    btn.classList.toggle("actif", valeur);
+  });
+  dialogLc.showModal();
+}
+
+pavesLcEl.querySelectorAll(".pave").forEach((btn) => {
+  btn.addEventListener("click", () => btn.classList.toggle("actif"));
+});
+
+lcAnnulerBtn.addEventListener("click", () => dialogLc.close());
+
+formLc.addEventListener("submit", async () => {
+  if (!adresseCourante) return;
+
+  const champs = { adresse_id: adresseCourante.id, agent_id: agentActuel?.id ?? null };
+  pavesLcEl.querySelectorAll(".pave").forEach((btn) => {
+    champs[btn.dataset.lc] = btn.classList.contains("actif");
+  });
+
+  const lc = await enregistrerLc(champs);
+  pousserVersSupabase("laisses_boite", lc);
+
+  adresseCourante = null;
+  rafraichirVueApp();
+});
+
 // --- Synchronisation "au mieux" vers Supabase ------------------------------
 // Écriture best-effort : si Supabase est configuré, joignable, et qu'on est
 // connecté avec un vrai compte (pas le mode démo), on y recopie aussi la
@@ -1947,7 +2278,22 @@ async function rafraichirAdminTourneeDetail() {
     adminTourneeDetailAssignEl.append(select, btnAssign);
   }
 
+  await rafraichirDepotsTourneeAdmin(supabase);
   await rafraichirCartePdf(supabase);
+}
+
+async function rafraichirDepotsTourneeAdmin(supabase) {
+  const depots = await listerDepotsTournee(supabase, tourneeDetailCourante);
+
+  adminTourneeDetailDepotsEl.innerHTML = "";
+  adminTourneeDetailDepotsVideEl.hidden = depots.length > 0;
+
+  for (const depot of depots) {
+    const li = document.createElement("li");
+    const total = depot.montant_especes + depot.montant_cheques;
+    li.innerHTML = `<span>${formaterDateDepot(depot.date)}</span><span>${formaterMontant(total)}</span>`;
+    adminTourneeDetailDepotsEl.appendChild(li);
+  }
 }
 
 async function rafraichirCartePdf(supabase) {

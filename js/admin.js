@@ -151,3 +151,18 @@ export async function supprimerCartePdf(supabase, tourneeId) {
   const { error } = await supabase.storage.from(BUCKET_CARTES).remove([`${tourneeId}.pdf`]);
   if (error) throw error;
 }
+
+// --- Dépôts d'une tournée --------------------------------------------------
+// Séparée de listerTournees pour ne pas alourdir cette requête (appelée
+// pour toute la liste des tournées) avec des données seulement utiles à
+// l'écran détail d'une tournée.
+export async function listerDepotsTournee(supabase, tourneeId) {
+  const { data, error } = await supabase
+    .from("depots")
+    .select("*")
+    .eq("tournee_id", tourneeId)
+    .order("date", { ascending: false });
+
+  if (error) throw error;
+  return data;
+}

@@ -131,6 +131,38 @@ create table dons (
 
 create index dons_adresse_id_idx on dons (adresse_id);
 
+-- Un dépôt (remise d'espèces/chèques comptés au coffre de l'amicale).
+-- Append-only : jamais modifié après coup, jamais lié au total de la
+-- tournée (dons continue d'accumuler indépendamment des dépôts déjà faits).
+create table depots (
+  id uuid primary key default gen_random_uuid(),
+  tournee_id uuid not null references tournees (id) on delete cascade,
+  agent_id uuid references agents (id),
+  montant_especes numeric(10, 2) not null default 0 check (montant_especes >= 0),
+  montant_cheques numeric(10, 2) not null default 0 check (montant_cheques >= 0),
+  nb_cheques integer not null default 0 check (nb_cheques >= 0),
+  detail_especes jsonb,
+  date timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+create index depots_tournee_id_idx on depots (tournee_id);
+
+-- Ce qui a été laissé dans la boîte aux lettres quand les 3 passages d'une
+-- adresse sont des absences (calendrier / avis de passage / enveloppe T).
+create table laisses_boite (
+  id uuid primary key default gen_random_uuid(),
+  adresse_id uuid not null references adresses (id) on delete cascade,
+  agent_id uuid references agents (id),
+  calendrier boolean not null default true,
+  avis_passage boolean not null default true,
+  enveloppe_t boolean not null default true,
+  date timestamptz not null default now(),
+  created_at timestamptz not null default now()
+);
+
+create index laisses_boite_adresse_id_idx on laisses_boite (adresse_id);
+
 -- Row Level Security -------------------------------------------------------
 
 alter table agents enable row level security;
@@ -140,6 +172,8 @@ alter table communes enable row level security;
 alter table rues enable row level security;
 alter table adresses enable row level security;
 alter table dons enable row level security;
+alter table depots enable row level security;
+alter table laisses_boite enable row level security;
 
 -- Vrai si l'utilisateur connecté est le compte de l'amicale (admin).
 create or replace function est_admin()
@@ -254,6 +288,23 @@ create policy "ajout_dons" on dons
       agent_id in (select ta.agent_id from tournee_agents ta where ta.tournee_id in (select mes_tournee_ids()))
       and adresse_id in (select id from adresses where rue_id in (select mes_rue_ids()))
     )
+  );
+
+-- depots : tournee_id est une FK directe (pas besoin de passer par
+-- mes_rue_ids()). Append-only : pas de policy update/delete.
+create policy "acces_depots" on depots
+  for select using (est_admin() or tournee_id in (select mes_tournee_ids()));
+create policy "ecriture_depots" on depots
+  for insert with check (est_admin() or tournee_id in (select mes_tournee_ids()));
+
+-- laisses_boite : même scoping que dons (adresse_id -> mes_rue_ids()).
+create policy "acces_laisses_boite" on laisses_boite
+  for select using (
+    est_admin() or adresse_id in (select id from adresses where rue_id in (select mes_rue_ids()))
+  );
+create policy "ecriture_laisses_boite" on laisses_boite
+  for insert with check (
+    est_admin() or adresse_id in (select id from adresses where rue_id in (select mes_rue_ids()))
   );
 
 -- Storage : cartes PDF des tournées (bucket "cartes-tournees", à créer à

@@ -98,9 +98,15 @@
       <button type="button" class="btn-retour" data-retour-accueil>← Accueil</button>
 
       <div class="onglets" id="onglets-tournee">
-        <button type="button" class="onglet actif" data-onglet="toutes">Toutes</button>
-        <button type="button" class="onglet" data-onglet="repasses">Repasses</button>
-        <button type="button" class="onglet" data-onglet="a-faire">A faire</button>
+        <button type="button" class="onglet actif" data-onglet="toutes">
+          Toutes <span id="onglet-compteur-toutes" class="onglet-compteur">0</span>
+        </button>
+        <button type="button" class="onglet" data-onglet="repasses">
+          Repasses <span id="onglet-compteur-repasses" class="onglet-compteur">0</span>
+        </button>
+        <button type="button" class="onglet" data-onglet="a-faire">
+          A faire <span id="onglet-compteur-a-faire" class="onglet-compteur">0</span>
+        </button>
       </div>
 
       <div id="onglet-toutes">
@@ -177,6 +183,22 @@
           </div>
         </div>
 
+        <div class="stat-carte stat-carte-jaune">
+          <span class="stat-icone">🚪</span>
+          <div class="stat-corps">
+            <span class="stat-label">Absents</span>
+            <span id="stat-nb-absents" class="stat-valeur">0</span>
+          </div>
+        </div>
+
+        <div class="stat-carte stat-carte-large stat-carte-gris">
+          <span class="stat-icone">📪</span>
+          <div class="stat-corps">
+            <span class="stat-label">Calendriers "LC" laissés dans la boîte à lettre</span>
+            <span id="stat-nb-lc" class="stat-valeur">0</span>
+          </div>
+        </div>
+
         <div class="stat-carte stat-carte-large stat-carte-colonne">
           <div class="stat-progression-entete">
             <span class="stat-label">Taux d'acceptation</span>
@@ -210,25 +232,53 @@
     <section id="vue-compta" hidden>
       <button type="button" class="btn-retour" data-retour-accueil>← Accueil</button>
       <h2>Compta</h2>
+      <p class="admin-bloc-desc">Compte les espèces et chèques en main pour préparer un dépôt.</p>
 
-      <div class="stats-grille">
-        <div class="stat-carte stat-carte-vert">
-          <span class="stat-icone">💵</span>
-          <div class="stat-corps">
-            <span class="stat-label">Espèces reçues</span>
-            <span id="compta-nb-especes" class="stat-valeur">0</span>
-            <span id="compta-total-especes" class="stat-sous-texte"></span>
+      <div class="admin-bloc">
+        <h3>Espèces</h3>
+        <ul id="compta-denominations" class="compta-denominations"></ul>
+        <div class="compta-sous-total">
+          <span>Total espèces compté</span>
+          <span id="compta-total-especes-compte">0,00 €</span>
+        </div>
+      </div>
+
+      <div class="admin-bloc">
+        <h3>Chèques</h3>
+        <div class="compta-stepper-ligne">
+          <span>Nombre de chèques</span>
+          <div class="stepper" id="compta-stepper-cheques">
+            <button type="button" class="stepper-moins">−</button>
+            <span class="stepper-valeur">0</span>
+            <button type="button" class="stepper-plus">+</button>
           </div>
         </div>
+        <label for="compta-montant-cheques">Montant total des chèques (€)</label>
+        <input type="number" id="compta-montant-cheques" min="0" step="0.01" inputmode="decimal" value="0" />
+      </div>
 
-        <div class="stat-carte stat-carte-bleu">
-          <span class="stat-icone">🧾</span>
-          <div class="stat-corps">
-            <span class="stat-label">Chèques reçus</span>
-            <span id="compta-nb-cheques" class="stat-valeur">0</span>
-            <span id="compta-total-cheques" class="stat-sous-texte"></span>
-          </div>
+      <div class="admin-bloc">
+        <h3>Comparaison</h3>
+        <div class="compta-comparaison-ligne">
+          <span>Compté (espèces + chèques)</span>
+          <span id="compta-total-compte">0,00 €</span>
         </div>
+        <div class="compta-comparaison-ligne">
+          <span>Attendu (dons enregistrés)</span>
+          <span id="compta-total-attendu">0,00 €</span>
+        </div>
+        <p id="compta-ecart" class="compta-ecart"></p>
+      </div>
+
+      <button type="button" id="btn-confirmer-depot" class="primary pave-pleine-largeur">
+        💰 Confirmer le dépôt
+      </button>
+      <p id="compta-message" class="connexion-message"></p>
+
+      <div class="admin-bloc">
+        <h3>Historique des dépôts</h3>
+        <ul id="compta-historique-depots" class="compta-historique"></ul>
+        <p id="compta-historique-vide" class="rue-vide" hidden>Aucun dépôt enregistré pour l'instant.</p>
       </div>
     </section>
 
@@ -292,6 +342,12 @@
         <h3>Amicalistes affectés</h3>
         <div id="admin-tournee-detail-agents" class="admin-tournee-agents"></div>
         <div id="admin-tournee-detail-assign" class="admin-assign-form"></div>
+      </div>
+
+      <div class="admin-bloc">
+        <h3>Dépôts</h3>
+        <ul id="admin-tournee-detail-depots" class="compta-historique"></ul>
+        <p id="admin-tournee-detail-depots-vide" class="rue-vide" hidden>Aucun dépôt enregistré pour cette tournée.</p>
       </div>
 
       <div class="admin-bloc">
@@ -364,6 +420,26 @@
       <div class="dialog-actions">
         <button type="button" id="don-annuler">Annuler</button>
         <button type="submit" id="don-valider" class="primary">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Ouvert quand les 3 passages d'une adresse sont des absences (case
+       "LC" à la place de la case Don) : ce qui a été laissé dans la boîte
+       aux lettres. Les 3 pavés sont cochés (verts) par défaut. -->
+  <dialog id="dialog-lc">
+    <form id="form-lc" method="dialog">
+      <h2>Laissés dans la boîte à lettre</h2>
+
+      <div class="pavés" id="pavés-lc">
+        <button type="button" class="pave actif" data-lc="calendrier">Calendrier</button>
+        <button type="button" class="pave actif" data-lc="avis_passage">Avis de passage</button>
+        <button type="button" class="pave actif" data-lc="enveloppe_t">Enveloppe T</button>
+      </div>
+
+      <div class="dialog-actions">
+        <button type="button" id="lc-annuler">Annuler</button>
+        <button type="submit" id="lc-valider" class="primary">Enregistrer</button>
       </div>
     </form>
   </dialog>

@@ -853,10 +853,26 @@ dialog::backdrop {
   border-bottom-color: var(--rouge);
 }
 
+.onglet-compteur {
+  display: inline-block;
+  min-width: 1.3em;
+  padding: 0.05rem 0.4rem;
+  border-radius: 999px;
+  background: var(--fond);
+  color: var(--gris);
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+.onglet.actif .onglet-compteur {
+  background: var(--rouge);
+  color: white;
+}
+
 /* --- Écran Statistiques -------------------------------------------------- */
 .stats-grille {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(3, 1fr);
   gap: 0.9rem;
 }
 
@@ -927,6 +943,7 @@ dialog::backdrop {
 .stat-carte-gris { background: var(--fond); }
 .stat-carte-bleu { background: #f0f7fe; }
 .stat-carte-rouge { background: #fdf2f2; }
+.stat-carte-jaune { background: #fff8e6; }
 
 .stat-carte-colonne {
   flex-direction: column;
@@ -1097,4 +1114,129 @@ dialog::backdrop {
   touch-action: none;
   cursor: grab;
   user-select: none;
+}
+
+/* --- Compta : comptage espèces/chèques + dépôts -------------------------- */
+.stepper {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+}
+
+.stepper-moins,
+.stepper-plus {
+  width: 2.2rem;
+  height: 2.2rem;
+  border-radius: 8px;
+  font-size: 1.2rem;
+  font-weight: 700;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stepper-valeur {
+  min-width: 1.6rem;
+  text-align: center;
+  font-weight: 700;
+}
+
+.compta-denominations {
+  list-style: none;
+  margin: 0 0 0.75rem;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.compta-denomination-row {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--bordure);
+}
+
+.compta-denomination-row:last-child {
+  border-bottom: none;
+}
+
+.compta-denomination-icone {
+  flex-shrink: 0;
+  width: 2rem;
+  height: 2rem;
+}
+
+.compta-denomination-label {
+  width: 3.2rem;
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.compta-denomination-row .stepper {
+  flex: 1;
+  justify-content: center;
+}
+
+.compta-denomination-sous-total {
+  width: 4.2rem;
+  text-align: right;
+  font-size: 0.8rem;
+  color: var(--gris);
+  font-weight: 600;
+}
+
+.compta-sous-total {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-weight: 800;
+  font-size: 1.1rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid var(--bordure);
+}
+
+.compta-stepper-ligne {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 0.75rem;
+}
+
+.compta-comparaison-ligne {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.2rem 0;
+}
+
+.compta-ecart {
+  margin: 0.5rem 0 0;
+  font-weight: 700;
+  text-align: center;
+  padding: 0.4rem;
+  border-radius: 8px;
+}
+
+.compta-ecart.ok { background: #f2faf3; color: var(--vert); }
+.compta-ecart.sur { background: #fdf2f2; color: var(--rouge); }
+.compta-ecart.sous { background: #fdf2f2; color: var(--rouge); }
+
+.compta-historique {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.compta-historique li {
+  display: flex;
+  justify-content: space-between;
+  padding: 0.6rem 0.75rem;
+  background: var(--fond);
+  border-radius: 8px;
+  font-size: 0.85rem;
 }

@@ -7,7 +7,7 @@
 // Hiérarchie : tournée -> communes -> rues -> adresses -> dons.
 
 const DB_NAME = "tournee-calendriers";
-const DB_VERSION = 10;
+const DB_VERSION = 12;
 
 // Identifiants "démo" utilisés tant qu'on n'est pas connecté à un vrai
 // compte (mode démo hors-ligne, sans backend).
@@ -92,6 +92,10 @@ function openDB() {
           if (db.objectStoreNames.contains(nom)) db.deleteObjectStore(nom);
         }
       }
+      // v11 ajoute le store "depots" (comptage espèces/chèques + suivi des
+      // remises au coffre). Contrairement aux bumps précédents, rien à
+      // vider ici : c'est un store entièrement nouveau, aucune forme
+      // existante à migrer.
       if (!db.objectStoreNames.contains("tournees")) {
         db.createObjectStore("tournees", { keyPath: "id" });
       }
@@ -109,6 +113,17 @@ function openDB() {
       }
       if (!db.objectStoreNames.contains("dons")) {
         const store = db.createObjectStore("dons", { keyPath: "id" });
+        store.createIndex("adresse_id", "adresse_id");
+      }
+      if (!db.objectStoreNames.contains("depots")) {
+        const store = db.createObjectStore("depots", { keyPath: "id" });
+        store.createIndex("tournee_id", "tournee_id");
+      }
+      // v12 ajoute le store "laisses_boite" (calendrier/avis de
+      // passage/enveloppe T laissés quand les 3 passages sont des
+      // absences), même logique additive que depots en v11 : rien à vider.
+      if (!db.objectStoreNames.contains("laisses_boite")) {
+        const store = db.createObjectStore("laisses_boite", { keyPath: "id" });
         store.createIndex("adresse_id", "adresse_id");
       }
     };
@@ -436,12 +451,63 @@ export async function getDonsByAdresse(adresseId) {
   return getAllByIndex("dons", "adresse_id", adresseId);
 }
 
+// Dépôt (remise d'espèces/chèques comptés au coffre) : jamais modifié
+// après coup, jamais lié au total de la tournée (voir schema.sql).
+export async function addDepot(champs) {
+  const record = {
+    id: crypto.randomUUID(),
+    date: new Date().toISOString(),
+    montant_especes: 0,
+    montant_cheques: 0,
+    nb_cheques: 0,
+    detail_especes: null,
+    ...champs,
+  };
+  await put("depots", record);
+  return record;
+}
+
+export async function getDepotsByTournee(tourneeId) {
+  return getAllByIndex("depots", "tournee_id", tourneeId);
+}
+
+export async function getLcByAdresse(adresseId) {
+  return getAllByIndex("laisses_boite", "adresse_id", adresseId);
+}
+
+// Même logique qu'enregistrerDon : un seul enregistrement par adresse et par
+// année, mis à jour en place si l'agent réenregistre après avoir rouvert
+// le dialogue LC.
+export async function enregistrerLc(champs) {
+  const lcs = await getLcByAdresse(champs.adresse_id);
+  const existant = trouverLcPourAnnee(lcs, new Date().getFullYear());
+  if (existant) {
+    const maj = { ...existant, ...champs, id: existant.id, date: existant.date };
+    await put("laisses_boite", maj);
+    return maj;
+  }
+  const record = {
+    id: crypto.randomUUID(),
+    date: new Date().toISOString(),
+    calendrier: true,
+    avis_passage: true,
+    enveloppe_t: true,
+    ...champs,
+  };
+  await put("laisses_boite", record);
+  return record;
+}
+
 // Supprime une adresse et tous ses dons (Supabase fait la même chose via
 // "on delete cascade" ; on reproduit le même comportement côté cache local).
 export async function deleteAdresse(id) {
   const dons = await getDonsByAdresse(id);
   for (const don of dons) {
     await remove("dons", don.id);
+  }
+  const lcs = await getLcByAdresse(id);
+  for (const lc of lcs) {
+    await remove("laisses_boite", lc.id);
   }
   await remove("adresses", id);
 }
@@ -477,6 +543,10 @@ export function statutValidationAdresse(adresse) {
 export function trouverDonPourAnnee(dons, annee) {
   const donsAnnee = dons.filter((d) => new Date(d.date).getFullYear() === annee);
   return donsAnnee.find((d) => d.refuse) || donsAnnee.find((d) => d.montant > 0) || null;
+}
+
+export function trouverLcPourAnnee(lcs, annee) {
+  return lcs.find((l) => new Date(l.date).getFullYear() === annee) || null;
 }
 
 export function auMoinsUnPassageReussi(adresse) {
