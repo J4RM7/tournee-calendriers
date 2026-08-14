@@ -80,14 +80,16 @@ const btnExportExcelAgent = document.getElementById("btn-export-excel-agent");
 const exportAgentMessageEl = document.getElementById("export-agent-message");
 
 const vueStatistiquesEl = document.getElementById("vue-statistiques");
-const statTotalCourantEl = document.getElementById("stat-total-courant");
-const statTotalPrecedentEl = document.getElementById("stat-total-precedent");
 const statVariationEl = document.getElementById("stat-variation");
 const statProgressionPourcentageEl = document.getElementById("stat-progression-pourcentage");
-const statProgressionFillEl = document.getElementById("stat-progression-fill");
+const statAnneauAvantEl = document.getElementById("stat-anneau-avant");
 const statMaisonsRestantesEl = document.getElementById("stat-maisons-restantes");
+const statBarresAnneesEl = document.getElementById("stat-barres-annees");
 const statNbDonateursEl = document.getElementById("stat-nb-donateurs");
 const statNbRefusEl = document.getElementById("stat-nb-refus");
+const statTauxAcceptationEl = document.getElementById("stat-taux-acceptation");
+const statRepartitionDonsEl = document.getElementById("stat-repartition-dons");
+const statRepartitionRefusEl = document.getElementById("stat-repartition-refus");
 
 const vueRechercheEl = document.getElementById("vue-recherche");
 const rechercheInputEl = document.getElementById("recherche-input");
@@ -548,6 +550,7 @@ async function calculerStatistiquesTournee(tourneeId) {
   let nbDonateurs = 0;
   let nbRefus = 0;
   let maisonsValidees = 0;
+  const totauxParAnnee = new Map();
 
   for (const { adresse } of items) {
     const dons = await getDonsByAdresse(adresse.id);
@@ -564,9 +567,23 @@ async function calculerStatistiquesTournee(tourneeId) {
       }
     }
     if (donPrecedent && !donPrecedent.refuse) totalPrecedent += donPrecedent.montant;
+
+    for (const don of dons) {
+      if (don.refuse) continue;
+      const annee = new Date(don.date).getFullYear();
+      totauxParAnnee.set(annee, (totauxParAnnee.get(annee) ?? 0) + don.montant);
+    }
   }
 
-  return { totalCourant, totalPrecedent, nbDonateurs, nbRefus, totalMaisons: items.length, maisonsValidees };
+  // Les 5 dernières années (année courante comprise), même celles sans don
+  // (total à 0), pour un diagramme en barres à largeur constante.
+  const historique = [];
+  for (let i = 4; i >= 0; i--) {
+    const annee = anneeCourante - i;
+    historique.push({ annee, total: totauxParAnnee.get(annee) ?? 0 });
+  }
+
+  return { totalCourant, totalPrecedent, nbDonateurs, nbRefus, totalMaisons: items.length, maisonsValidees, historique };
 }
 
 // --- Page d'accueil (pavés) -----------------------------------------------
@@ -625,6 +642,8 @@ paveAccueilRechercheBtn.addEventListener("click", () => afficherRecherche());
 boutonsRetourAccueil.forEach((btn) => btn.addEventListener("click", () => afficherAccueil()));
 
 // --- Écran Statistiques ---------------------------------------------------
+const STAT_ANNEAU_CIRCONFERENCE = 2 * Math.PI * 52;
+
 async function afficherStatistiques() {
   vueAppInterne = "statistiques";
   masquerToutesLesVuesApp();
@@ -632,11 +651,23 @@ async function afficherStatistiques() {
 
   const stats = tourneeActuelleId
     ? await calculerStatistiquesTournee(tourneeActuelleId)
-    : { totalCourant: 0, totalPrecedent: 0, nbDonateurs: 0, nbRefus: 0, totalMaisons: 0, maisonsValidees: 0 };
+    : { totalCourant: 0, totalPrecedent: 0, nbDonateurs: 0, nbRefus: 0, totalMaisons: 0, maisonsValidees: 0, historique: [] };
 
-  statTotalCourantEl.textContent = formaterMontant(stats.totalCourant);
-  statTotalPrecedentEl.textContent = formaterMontant(stats.totalPrecedent);
+  // Anneau de progression de la tournée.
+  const pourcentage = stats.totalMaisons ? Math.round((stats.maisonsValidees / stats.totalMaisons) * 100) : 0;
+  statProgressionPourcentageEl.textContent = `${pourcentage} %`;
+  statAnneauAvantEl.style.strokeDashoffset = String(
+    STAT_ANNEAU_CIRCONFERENCE * (1 - pourcentage / 100)
+  );
+  const restantes = stats.totalMaisons - stats.maisonsValidees;
+  statMaisonsRestantesEl.textContent =
+    restantes > 0
+      ? `${restantes} maison${restantes > 1 ? "s" : ""} restante${restantes > 1 ? "s" : ""} à valider`
+      : stats.totalMaisons > 0
+        ? "Toutes les maisons sont validées"
+        : "Aucune maison pour l'instant";
 
+  // Diagramme en barres : dons collectés sur les 5 dernières années.
   if (stats.totalPrecedent > 0) {
     const variation = ((stats.totalCourant - stats.totalPrecedent) / stats.totalPrecedent) * 100;
     const signe = variation >= 0 ? "+" : "";
@@ -650,19 +681,38 @@ async function afficherStatistiques() {
     statVariationEl.className = "stat-variation";
   }
 
-  const pourcentage = stats.totalMaisons ? Math.round((stats.maisonsValidees / stats.totalMaisons) * 100) : 0;
-  statProgressionPourcentageEl.textContent = `${pourcentage} %`;
-  statProgressionFillEl.style.width = `${pourcentage}%`;
-  const restantes = stats.totalMaisons - stats.maisonsValidees;
-  statMaisonsRestantesEl.textContent =
-    restantes > 0
-      ? `${restantes} maison${restantes > 1 ? "s" : ""} restante${restantes > 1 ? "s" : ""} à valider`
-      : stats.totalMaisons > 0
-        ? "Toutes les maisons sont validées"
-        : "Aucune maison pour l'instant";
+  const anneeCourante = new Date().getFullYear();
+  const maxHistorique = Math.max(1, ...stats.historique.map((h) => h.total));
+  statBarresAnneesEl.innerHTML = "";
+  for (const { annee, total } of stats.historique) {
+    const colonne = document.createElement("div");
+    colonne.className = "stat-barre-colonne" + (annee === anneeCourante ? " stat-barre-courante" : "");
 
+    const montant = document.createElement("span");
+    montant.className = "stat-barre-montant";
+    montant.textContent = total > 0 ? formaterMontant(total) : "";
+
+    const barre = document.createElement("div");
+    barre.className = "stat-barre";
+    barre.style.height = `${Math.round((total / maxHistorique) * 100)}%`;
+
+    const label = document.createElement("span");
+    label.className = "stat-barre-annee";
+    label.textContent = `’${String(annee).slice(-2)}`;
+
+    colonne.append(montant, barre, label);
+    statBarresAnneesEl.appendChild(colonne);
+  }
+
+  // Donateurs / refus, avec une barre de répartition visuelle.
   statNbDonateursEl.textContent = String(stats.nbDonateurs);
   statNbRefusEl.textContent = String(stats.nbRefus);
+
+  const totalReponses = stats.nbDonateurs + stats.nbRefus;
+  const partDons = totalReponses ? Math.round((stats.nbDonateurs / totalReponses) * 100) : 0;
+  statRepartitionDonsEl.style.width = `${partDons}%`;
+  statRepartitionRefusEl.style.width = `${totalReponses ? 100 - partDons : 0}%`;
+  statTauxAcceptationEl.textContent = totalReponses ? `${partDons} %` : "—";
 }
 
 // --- Écran Compta (comptage espèces / chèques) ----------------------------

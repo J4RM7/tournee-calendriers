@@ -928,6 +928,116 @@ dialog::backdrop {
 .stat-carte-bleu { background: #f0f7fe; }
 .stat-carte-rouge { background: #fdf2f2; }
 
+.stat-carte-colonne {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 0.6rem;
+}
+
+/* Anneau de progression (SVG, cercle rempli via stroke-dasharray). */
+.stat-anneau {
+  position: relative;
+  width: 4.5rem;
+  height: 4.5rem;
+  flex-shrink: 0;
+}
+
+.stat-anneau-svg {
+  width: 100%;
+  height: 100%;
+  transform: rotate(-90deg);
+}
+
+.stat-anneau-fond {
+  fill: none;
+  stroke: var(--bordure);
+  stroke-width: 14;
+}
+
+.stat-anneau-avant {
+  fill: none;
+  stroke: var(--vert);
+  stroke-width: 14;
+  stroke-linecap: round;
+  stroke-dasharray: 326.7;
+  stroke-dashoffset: 326.7;
+  transition: stroke-dashoffset 0.4s ease;
+}
+
+.stat-anneau-centre {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.stat-anneau-pourcentage {
+  font-size: 1.05rem;
+  font-weight: 800;
+}
+
+/* Diagramme en barres (dons par année). */
+.stat-barres {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 0.5rem;
+  height: 6.5rem;
+}
+
+.stat-barre-colonne {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 0.25rem;
+  height: 100%;
+}
+
+.stat-barre-montant {
+  font-size: 0.68rem;
+  font-weight: 700;
+  color: var(--gris);
+  white-space: nowrap;
+}
+
+.stat-barre {
+  width: 100%;
+  max-width: 1.6rem;
+  min-height: 3px;
+  border-radius: 4px 4px 0 0;
+  background: var(--bordure);
+  transition: height 0.4s ease;
+}
+
+.stat-barre-colonne.stat-barre-courante .stat-barre {
+  background: var(--vert);
+}
+
+.stat-barre-annee {
+  font-size: 0.68rem;
+  color: var(--gris);
+}
+
+/* Répartition dons/refus. */
+.stat-repartition-barre {
+  display: flex;
+  height: 10px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bordure);
+}
+
+.stat-repartition-segment {
+  height: 100%;
+  transition: width 0.4s ease;
+}
+
+.stat-repartition-dons { background: var(--vert); }
+.stat-repartition-refus { background: var(--rouge); }
+
 /* --- Écran Recherche ------------------------------------------------------ */
 #recherche-input {
   width: 100%;

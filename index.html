@@ -137,33 +137,28 @@
       <h2>Statistiques</h2>
 
       <div class="stats-grille">
-        <div class="stat-carte stat-carte-vert">
-          <span class="stat-icone">💶</span>
-          <div class="stat-corps">
-            <span class="stat-label">Récolté cette année</span>
-            <span id="stat-total-courant" class="stat-valeur">0,00 €</span>
-          </div>
-        </div>
-
-        <div class="stat-carte stat-carte-gris">
-          <span class="stat-icone">📅</span>
-          <div class="stat-corps">
-            <span class="stat-label">L'an dernier</span>
-            <span id="stat-total-precedent" class="stat-valeur">0,00 €</span>
-            <span id="stat-variation" class="stat-variation"></span>
-          </div>
-        </div>
-
         <div class="stat-carte stat-carte-large">
-          <span class="stat-icone">🏠</span>
-          <div class="stat-corps stat-corps-large">
-            <div class="stat-progression-entete">
-              <span class="stat-label">Progression de la tournée</span>
-              <span id="stat-progression-pourcentage" class="stat-valeur">0 %</span>
+          <div class="stat-anneau">
+            <svg viewBox="0 0 120 120" class="stat-anneau-svg">
+              <circle cx="60" cy="60" r="52" class="stat-anneau-fond"></circle>
+              <circle cx="60" cy="60" r="52" id="stat-anneau-avant" class="stat-anneau-avant"></circle>
+            </svg>
+            <div class="stat-anneau-centre">
+              <span id="stat-progression-pourcentage" class="stat-anneau-pourcentage">0 %</span>
             </div>
-            <div class="progress-bar"><div id="stat-progression-fill" class="progress-fill"></div></div>
+          </div>
+          <div class="stat-corps">
+            <span class="stat-label">Progression de la tournée</span>
             <span id="stat-maisons-restantes" class="stat-sous-texte"></span>
           </div>
+        </div>
+
+        <div class="stat-carte stat-carte-large stat-carte-colonne">
+          <div class="stat-progression-entete">
+            <span class="stat-label">💶 Dons collectés par année</span>
+            <span id="stat-variation" class="stat-variation"></span>
+          </div>
+          <div id="stat-barres-annees" class="stat-barres"></div>
         </div>
 
         <div class="stat-carte stat-carte-bleu">
@@ -179,6 +174,17 @@
           <div class="stat-corps">
             <span class="stat-label">Refus</span>
             <span id="stat-nb-refus" class="stat-valeur">0</span>
+          </div>
+        </div>
+
+        <div class="stat-carte stat-carte-large stat-carte-colonne">
+          <div class="stat-progression-entete">
+            <span class="stat-label">Taux d'acceptation</span>
+            <span id="stat-taux-acceptation" class="stat-valeur"></span>
+          </div>
+          <div class="stat-repartition-barre">
+            <div id="stat-repartition-dons" class="stat-repartition-segment stat-repartition-dons"></div>
+            <div id="stat-repartition-refus" class="stat-repartition-segment stat-repartition-refus"></div>
           </div>
         </div>
       </div>
