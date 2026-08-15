@@ -78,8 +78,13 @@ const cartoLienPdfEl = document.getElementById("carto-lien-pdf");
 const vueComptaEl = document.getElementById("vue-compta");
 const comptaDenominationsEl = document.getElementById("compta-denominations");
 const comptaTotalEspecesCompteEl = document.getElementById("compta-total-especes-compte");
-const comptaStepperChequesEl = document.getElementById("compta-stepper-cheques");
-const comptaMontantChequesInput = document.getElementById("compta-montant-cheques");
+const comptaChequesListeEl = document.getElementById("compta-cheques-liste");
+const comptaChequesVideEl = document.getElementById("compta-cheques-vide");
+const btnAjouterChequeEl = document.getElementById("btn-ajouter-cheque");
+const chequeSaisieEl = document.getElementById("cheque-saisie");
+const chequeMontantSaisieInput = document.getElementById("cheque-montant-saisie");
+const chequeValiderSaisieBtn = document.getElementById("cheque-valider-saisie");
+const comptaTotalChequesCompteEl = document.getElementById("compta-total-cheques-compte");
 const comptaTotalCompteEl = document.getElementById("compta-total-compte");
 const comptaTotalAttenduEl = document.getElementById("compta-total-attendu");
 const comptaEcartEl = document.getElementById("compta-ecart");
@@ -843,7 +848,7 @@ function brancherStepper(el, { onChange }) {
   };
   el.querySelector(".stepper-moins").addEventListener("click", () => definir(valeur - 1));
   el.querySelector(".stepper-plus").addEventListener("click", () => definir(valeur + 1));
-  return { get: () => valeur, reset: () => definir(0) };
+  return { get: () => valeur, reset: () => definir(0), incrementer: () => definir(valeur + 1) };
 }
 
 let tallyEspeces = new Map(DENOMINATIONS.map((d) => [d.valeur, 0]));
@@ -884,15 +889,83 @@ function rendreDenominations() {
   });
 }
 
-const stepperCheques = brancherStepper(comptaStepperChequesEl, {
-  onChange: () => recalculerTotaux(),
+// Contrairement aux dénominations d'espèces (liste fixe de 13 valeurs), les
+// chèques n'ont pas de montants prédéfinis : la liste se construit au fur et
+// à mesure via "+ Ajouter un chèque", une ligne par montant distinct, avec
+// un stepper pour ajouter d'autres chèques du même montant.
+let tallyCheques = new Map(); // montant -> quantité
+let chequesControleurs = new Map(); // montant -> contrôleur de stepper
+
+function rendreLigneCheque(montant) {
+  const li = document.createElement("li");
+  li.className = "compta-cheque-row";
+  li.innerHTML = `
+    <span class="compta-cheque-montant">${formaterMontant(montant)}</span>
+    <div class="stepper">
+      <button type="button" class="stepper-moins">−</button>
+      <span class="stepper-valeur">0</span>
+      <button type="button" class="stepper-plus">+</button>
+    </div>
+    <span class="compta-denomination-sous-total">0,00 €</span>
+  `;
+  const sousTotalEl = li.querySelector(".compta-denomination-sous-total");
+  const controleur = brancherStepper(li.querySelector(".stepper"), {
+    onChange: (quantite) => {
+      if (quantite <= 0) {
+        tallyCheques.delete(montant);
+        chequesControleurs.delete(montant);
+        li.remove();
+        comptaChequesVideEl.hidden = comptaChequesListeEl.children.length > 0;
+        recalculerTotaux();
+        return;
+      }
+      tallyCheques.set(montant, quantite);
+      sousTotalEl.textContent = formaterMontant(quantite * montant);
+      recalculerTotaux();
+    },
+  });
+  comptaChequesListeEl.appendChild(li);
+  chequesControleurs.set(montant, controleur);
+  return controleur;
+}
+
+function ajouterCheque(montant) {
+  montant = Math.round((montant || 0) * 100) / 100;
+  if (montant <= 0) return;
+
+  comptaChequesVideEl.hidden = true;
+  const controleur = chequesControleurs.get(montant) || rendreLigneCheque(montant);
+  controleur.incrementer();
+}
+
+btnAjouterChequeEl.addEventListener("click", () => {
+  btnAjouterChequeEl.hidden = true;
+  chequeSaisieEl.hidden = false;
+  chequeMontantSaisieInput.focus();
 });
-comptaMontantChequesInput.addEventListener("input", () => recalculerTotaux());
+
+function validerSaisieCheque() {
+  ajouterCheque(parseFloat(chequeMontantSaisieInput.value));
+  chequeMontantSaisieInput.value = "";
+  chequeMontantSaisieInput.focus();
+}
+
+chequeValiderSaisieBtn.addEventListener("click", validerSaisieCheque);
+chequeMontantSaisieInput.addEventListener("keydown", (event) => {
+  if (event.key === "Enter") {
+    event.preventDefault();
+    validerSaisieCheque();
+  }
+});
 
 function reinitialiserComptage() {
   denominationsControleurs.forEach((c) => c.reset());
-  stepperCheques.reset();
-  comptaMontantChequesInput.value = "0";
+  tallyCheques = new Map();
+  chequesControleurs = new Map();
+  comptaChequesListeEl.innerHTML = "";
+  comptaChequesVideEl.hidden = false;
+  chequeSaisieEl.hidden = true;
+  btnAjouterChequeEl.hidden = false;
   recalculerTotaux();
 }
 
@@ -901,7 +974,10 @@ function recalculerTotaux() {
   for (const [valeur, quantite] of tallyEspeces) totalEspeces += valeur * quantite;
   comptaTotalEspecesCompteEl.textContent = formaterMontant(totalEspeces);
 
-  const montantCheques = Number(comptaMontantChequesInput.value) || 0;
+  let montantCheques = 0;
+  for (const [valeur, quantite] of tallyCheques) montantCheques += valeur * quantite;
+  comptaTotalChequesCompteEl.textContent = formaterMontant(montantCheques);
+
   const totalCompte = totalEspeces + montantCheques;
   comptaTotalCompteEl.textContent = formaterMontant(totalCompte);
   comptaTotalAttenduEl.textContent = formaterMontant(comptaTotalAttenduActuel);
@@ -987,7 +1063,7 @@ btnConfirmerDepot.addEventListener("click", async () => {
     agent_id: agentActuel?.id ?? null,
     montant_especes: totalEspeces,
     montant_cheques: montantCheques,
-    nb_cheques: stepperCheques.get(),
+    nb_cheques: [...tallyCheques.values()].reduce((total, quantite) => total + quantite, 0),
     detail_especes: detailEspeces,
   });
 

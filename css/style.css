@@ -870,9 +870,16 @@ dialog::backdrop {
 }
 
 /* --- Écran Statistiques -------------------------------------------------- */
+.stats-grille-haut {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.9rem;
+  margin-bottom: 0.9rem;
+}
+
 .stats-grille {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: 1fr 1fr;
   gap: 0.9rem;
 }
 
@@ -1198,11 +1205,44 @@ dialog::backdrop {
   border-top: 1px solid var(--bordure);
 }
 
-.compta-stepper-ligne {
+.compta-cheques-liste {
+  list-style: none;
+  margin: 0 0 0.5rem;
+  padding: 0;
   display: flex;
-  justify-content: space-between;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.compta-cheque-row {
+  display: flex;
   align-items: center;
-  margin-bottom: 0.75rem;
+  gap: 0.6rem;
+  padding: 0.4rem 0;
+  border-bottom: 1px solid var(--bordure);
+}
+
+.compta-cheque-row:last-child {
+  border-bottom: none;
+}
+
+.compta-cheque-montant {
+  flex: 1;
+  font-weight: 600;
+}
+
+.compta-cheque-row .stepper {
+  flex-shrink: 0;
+}
+
+.cheque-saisie {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.cheque-saisie input {
+  flex: 1;
 }
 
 .compta-comparaison-ligne {
