@@ -190,7 +190,11 @@ export async function exporterPDF(supabase) {
     y -= hauteurLigne;
   }
 
-  const octets = await doc.save();
+  // useObjectStreams:false : la compression par flux d'objets de pdf-lib
+  // (activée par défaut) produit ici un fichier corrompu (erreur zlib à la
+  // lecture) avec ce nombre d'objets/police standard — désactivée pour un
+  // PDF non compressé mais fiable, seul le contenu des pages reste compressé.
+  const octets = await doc.save({ useObjectStreams: false });
   const blob = new Blob([octets], { type: "application/pdf" });
   telechargerBlob(blob, `tournee-calendriers-${new Date().getFullYear()}.pdf`);
 }
@@ -261,8 +265,28 @@ export async function genererRapportDepot(depot, tournee, numero) {
     page.drawRectangle({ x: cx - 7, y: cy - 5, width: 14, height: 10, borderColor: couleurBordure, borderWidth: 1 });
 
   // --- En-tête ---------------------------------------------------------
+  // Logo en haut à droite, en filigrane du texte d'en-tête (colonne de
+  // gauche) : échec silencieux si l'image n'est pas joignable, ce n'est pas
+  // bloquant pour la génération du reçu.
+  try {
+    const logoLargeur = 55;
+    const logoHauteur = (logoLargeur * 160) / 138;
+    const logoBytes = await (await fetch("/icons/logo-amicale-web.png")).arrayBuffer();
+    const logo = await doc.embedPng(logoBytes);
+    page.drawImage(logo, {
+      x: largeurPage - marge - logoLargeur,
+      y: hauteurPage - marge - logoHauteur + 8,
+      width: logoLargeur,
+      height: logoHauteur,
+    });
+  } catch (err) {
+    console.warn("Logo introuvable pour le reçu :", err);
+  }
+
   ecrire(`Reçu de dépôt n°${numero}`, { taille: 18, font: policeGrasse, saut: 30 });
-  ecrire(`Tournée n°${tournee?.numero ?? "—"}`, { taille: 12, font: policeGrasse, saut: 18 });
+  // Le n° de tournée est l'info la plus utile pour trier les reçus a
+  // posteriori : mis en évidence, plus gros que le titre lui-même.
+  ecrire(`Tournée n°${tournee?.numero ?? "—"}`, { taille: 22, font: policeGrasse, saut: 28 });
   const nomsAgents = (tournee?.agents || []).map((a) => `${a.prenom} ${a.nom}`.trim()).filter(Boolean);
   ecrire(`Agents : ${nomsAgents.length ? nomsAgents.join(", ") : "—"}`, { taille: 10, saut: 16 });
   // "Édité le" et non "Date du dépôt" : c'est le moment de génération du
@@ -303,10 +327,20 @@ export async function genererRapportDepot(depot, tournee, numero) {
   ecrire(`Total espèces : ${formater(depot.montant_especes)}`, { taille: 12, font: policeGrasse, saut: 22 });
   ligneSeparation();
 
-  // --- Chèques ------------------------------------------------------------
+  // --- Chèques, détaillés comme les billets --------------------------------
   ecrire("Chèques", { taille: 13, font: policeGrasse, saut: 20 });
-  ligneAvecIcone(icCheque, `Nombre de chèques : ${depot.nb_cheques}`);
-  ecrire(`Montant total des chèques : ${formater(depot.montant_cheques)}`, { taille: 10, saut: 22 });
+  const detailCheques = [...(depot.detail_cheques || [])].sort((a, b) => b.valeur - a.valeur);
+  if (detailCheques.length === 0) {
+    // Anciens dépôts enregistrés avant l'ajout du détail : on retombe sur
+    // le seul total déjà connu plutôt que de ne rien afficher.
+    ligneAvecIcone(icCheque, `Nombre de chèques : ${depot.nb_cheques}`);
+  } else {
+    for (const { valeur, quantite } of detailCheques) {
+      ligneAvecIcone(icCheque, `${formater(valeur)}  ×${quantite}  =  ${formater(valeur * quantite)}`);
+    }
+  }
+  y -= 4;
+  ecrire(`Total chèques : ${formater(depot.montant_cheques)}`, { taille: 12, font: policeGrasse, saut: 22 });
   ligneSeparation();
 
   // --- Total ---------------------------------------------------------------
@@ -336,7 +370,11 @@ export async function genererRapportDepot(depot, tournee, numero) {
   page.drawText("Heure :", { x: marge + 195, y, size: 10, font: police });
   page.drawLine({ start: { x: marge + 240, y: y - 2 }, end: { x: largeurPage - marge, y: y - 2 }, thickness: 0.5 });
 
-  const octets = await doc.save();
+  // useObjectStreams:false : la compression par flux d'objets de pdf-lib
+  // (activée par défaut) produit ici un fichier corrompu (erreur zlib à la
+  // lecture) avec ce nombre d'objets/police standard — désactivée pour un
+  // PDF non compressé mais fiable, seul le contenu des pages reste compressé.
+  const octets = await doc.save({ useObjectStreams: false });
   const blob = new Blob([octets], { type: "application/pdf" });
   const dateFichier = new Date(depot.date).toISOString().slice(0, 10);
   telechargerBlob(blob, `depot-tournee-${tournee?.numero ?? "x"}-n${numero}-${dateFichier}.pdf`);

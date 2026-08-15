@@ -1162,6 +1162,9 @@ formEffectuerDepot.addEventListener("submit", async (event) => {
   const detailEspeces = [...tallyEspeces.entries()]
     .filter(([, quantite]) => quantite > 0)
     .map(([valeur, quantite]) => ({ valeur, quantite }));
+  const detailCheques = [...tallyCheques.entries()]
+    .filter(([, quantite]) => quantite > 0)
+    .map(([valeur, quantite]) => ({ valeur, quantite }));
 
   const numero = (await getDepotsByTournee(tourneeActuelleId)).length + 1;
 
@@ -1172,6 +1175,7 @@ formEffectuerDepot.addEventListener("submit", async (event) => {
     montant_cheques: montantCheques,
     nb_cheques: [...tallyCheques.values()].reduce((total, quantite) => total + quantite, 0),
     detail_especes: detailEspeces,
+    detail_cheques: detailCheques,
   });
 
   await pousserVersSupabase("depots", depot);

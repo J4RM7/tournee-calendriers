@@ -142,6 +142,7 @@ create table depots (
   montant_cheques numeric(10, 2) not null default 0 check (montant_cheques >= 0),
   nb_cheques integer not null default 0 check (nb_cheques >= 0),
   detail_especes jsonb,
+  detail_cheques jsonb,
   date timestamptz not null default now(),
   created_at timestamptz not null default now()
 );

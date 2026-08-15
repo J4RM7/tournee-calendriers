@@ -461,6 +461,7 @@ export async function addDepot(champs) {
     montant_cheques: 0,
     nb_cheques: 0,
     detail_especes: null,
+    detail_cheques: null,
     ...champs,
   };
   await put("depots", record);
