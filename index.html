@@ -193,11 +193,43 @@
           <div id="stat-barres-annees" class="stat-barres"></div>
         </div>
 
-        <div class="stat-carte stat-carte-large stat-carte-gris">
+        <div class="stat-carte stat-carte-gris">
           <span class="stat-icone">📪</span>
           <div class="stat-corps">
-            <span class="stat-label">Calendriers "LC" laissés dans la boîte à lettre</span>
+            <span class="stat-label">Calendriers "LC"</span>
             <span id="stat-nb-lc" class="stat-valeur">0</span>
+          </div>
+        </div>
+
+        <div class="stat-carte stat-carte-vert">
+          <span class="stat-icone">⬆️</span>
+          <div class="stat-corps">
+            <span class="stat-label">Plus gros don</span>
+            <span id="stat-don-max" class="stat-valeur">—</span>
+          </div>
+        </div>
+
+        <div class="stat-carte stat-carte-gris">
+          <span class="stat-icone">⬇️</span>
+          <div class="stat-corps">
+            <span class="stat-label">Plus petit don</span>
+            <span id="stat-don-min" class="stat-valeur">—</span>
+          </div>
+        </div>
+
+        <div class="stat-carte stat-carte-bleu">
+          <span class="stat-icone">📊</span>
+          <div class="stat-corps">
+            <span class="stat-label">Don moyen</span>
+            <span id="stat-don-moyen" class="stat-valeur">—</span>
+          </div>
+        </div>
+
+        <div class="stat-carte stat-carte-jaune">
+          <span class="stat-icone">🔁</span>
+          <div class="stat-corps">
+            <span class="stat-label">Montant le plus donné</span>
+            <span id="stat-don-frequent" class="stat-valeur">—</span>
           </div>
         </div>
 
@@ -262,6 +294,16 @@
           <span>Total chèques</span>
           <span id="compta-total-cheques-compte">0,00 €</span>
         </div>
+
+        <div class="compta-comparaison-ligne">
+          <span>Chèques attendus (dons enregistrés)</span>
+          <span id="compta-cheques-attendu-nb"></span>
+        </div>
+        <div class="compta-comparaison-ligne">
+          <span>Montant attendu</span>
+          <span id="compta-cheques-attendu">0,00 €</span>
+        </div>
+        <p id="compta-cheques-ecart" class="compta-ecart"></p>
       </div>
 
       <div class="admin-bloc">
@@ -277,8 +319,8 @@
         <p id="compta-ecart" class="compta-ecart"></p>
       </div>
 
-      <button type="button" id="btn-confirmer-depot" class="primary pave-pleine-largeur">
-        💰 Confirmer le dépôt
+      <button type="button" id="btn-effectuer-depot" class="primary pave-pleine-largeur">
+        💰 Effectuer un dépôt
       </button>
       <p id="compta-message" class="connexion-message"></p>
 
@@ -447,6 +489,37 @@
       <div class="dialog-actions">
         <button type="button" id="lc-annuler">Annuler</button>
         <button type="submit" id="lc-valider" class="primary">Enregistrer</button>
+      </div>
+    </form>
+  </dialog>
+
+  <!-- Ouvert au clic sur "Effectuer un dépôt" : choix des actions à faire
+       une fois le dépôt enregistré. "Télécharger" est actif par défaut ;
+       les 2 options d'envoi par mail n'envoient rien pour l'instant (pas
+       de compte Resend configuré) — voir js/app.js. -->
+  <dialog id="dialog-effectuer-depot">
+    <form id="form-effectuer-depot" method="dialog">
+      <h2>Effectuer un dépôt</h2>
+      <p id="effectuer-depot-resume" class="admin-bloc-desc"></p>
+
+      <div class="effectuer-depot-choix">
+        <button type="button" class="pave pave-pleine-largeur actif" data-depot-action="telecharger">
+          ⬇️ Télécharger le reçu de dépôt
+        </button>
+        <button type="button" class="pave pave-pleine-largeur" data-depot-action="amicale">
+          ✉️ Envoyer par mail à l'amicale
+        </button>
+        <button type="button" class="pave pave-pleine-largeur" data-depot-action="autre">
+          ✉️ Envoyer à une autre adresse mail
+        </button>
+        <input type="email" id="depot-email-autre" placeholder="adresse@email.fr" hidden />
+      </div>
+
+      <p id="effectuer-depot-message" class="connexion-message"></p>
+
+      <div class="dialog-actions">
+        <button type="button" id="effectuer-depot-annuler">Annuler</button>
+        <button type="submit" id="effectuer-depot-valider" class="primary">Enregistrer le dépôt</button>
       </div>
     </form>
   </dialog>

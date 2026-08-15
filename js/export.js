@@ -195,64 +195,151 @@ export async function exporterPDF(supabase) {
   telechargerBlob(blob, `tournee-calendriers-${new Date().getFullYear()}.pdf`);
 }
 
+// Couleurs officielles des billets (reprises de DENOMINATIONS dans app.js) et
+// une teinte cuivrée générique pour les pièces — de simples formes dessinées
+// (cercle/rectangle) plutôt que des emoji : les polices standard de pdf-lib
+// (encodage WinAnsi) ne savent pas dessiner de vrais caractères emoji.
+const COULEURS_BILLET_HEX = { 5: "#8c8c7a", 10: "#c0392b", 20: "#2980b9", 50: "#e67e22", 100: "#27ae60" };
+const COULEUR_PIECE_HEX = "#c68a4e";
+
+function hexVersRgbLib(hex, rgb) {
+  const n = parseInt(hex.replace("#", ""), 16);
+  return rgb(((n >> 16) & 255) / 255, ((n >> 8) & 255) / 255, (n & 255) / 255);
+}
+
 // Reçu PDF d'un seul dépôt (téléchargé juste après confirmation côté agent) :
 // une seule page, pas de pagination — inutilement lourd pour un simple
 // ticket à joindre au dépôt physique au coffre.
-export async function genererRapportDepot(depot, tournee) {
-  const { PDFDocument, StandardFonts } = await import("https://esm.sh/pdf-lib@1.17.1");
+export async function genererRapportDepot(depot, tournee, numero) {
+  const { PDFDocument, StandardFonts, rgb } = await import("https://esm.sh/pdf-lib@1.17.1");
 
   const doc = await PDFDocument.create();
   const police = await doc.embedFont(StandardFonts.Helvetica);
   const policeGrasse = await doc.embedFont(StandardFonts.HelveticaBold);
 
-  const hauteurPage = 595.28;
+  const largeurPage = 420;
+  const hauteurPage = 780; // page plus haute + interlignage plus large : rendu "aéré"
   const marge = 40;
-  const page = doc.addPage([420, hauteurPage]);
+  const page = doc.addPage([largeurPage, hauteurPage]);
   let y = hauteurPage - marge;
 
+  const couleurGrise = rgb(0.85, 0.85, 0.85);
+  const couleurBordure = rgb(0.6, 0.6, 0.6);
+  const couleurPiece = hexVersRgbLib(COULEUR_PIECE_HEX, rgb);
+  const couleursBillet = Object.fromEntries(
+    Object.entries(COULEURS_BILLET_HEX).map(([valeur, hex]) => [valeur, hexVersRgbLib(hex, rgb)])
+  );
+
   const formater = (montant) => `${Number(montant).toFixed(2).replace(".", ",")} €`;
-  const ecrire = (texte, { taille = 11, font = police, saut = 18 } = {}) => {
+
+  const ecrire = (texte, { taille = 11, font = police, saut = 20 } = {}) => {
     page.drawText(texte, { x: marge, y, size: taille, font });
     y -= saut;
   };
 
-  ecrire("Reçu de dépôt", { taille: 18, font: policeGrasse, saut: 28 });
-  ecrire(`Tournée n°${tournee?.numero ?? "—"}`, { taille: 12, font: policeGrasse });
-  ecrire(`Date du dépôt : ${new Date(depot.date).toLocaleString("fr-FR")}`);
-  y -= 8;
+  const ligneSeparation = (saut = 14) => {
+    page.drawLine({
+      start: { x: marge, y },
+      end: { x: largeurPage - marge, y },
+      thickness: 0.75,
+      color: couleurGrise,
+    });
+    y -= saut;
+  };
 
-  ecrire("Détail des espèces", { taille: 12, font: policeGrasse });
+  // Icône (cercle plein pour une pièce, rectangle plein pour un billet,
+  // rectangle vide pour un chèque) suivie du texte sur la même ligne.
+  const ligneAvecIcone = (dessinerIcone, texte, { taille = 10, saut = 16 } = {}) => {
+    dessinerIcone(marge + 6, y + taille * 0.32);
+    page.drawText(texte, { x: marge + 20, y, size: taille, font: police });
+    y -= saut;
+  };
+  const icPiece = (cx, cy) => page.drawEllipse({ x: cx, y: cy, xScale: 5, yScale: 5, color: couleurPiece });
+  const icBillet = (couleur) => (cx, cy) =>
+    page.drawRectangle({ x: cx - 7, y: cy - 4.5, width: 14, height: 9, color: couleur });
+  const icCheque = (cx, cy) =>
+    page.drawRectangle({ x: cx - 7, y: cy - 5, width: 14, height: 10, borderColor: couleurBordure, borderWidth: 1 });
+
+  // --- En-tête ---------------------------------------------------------
+  ecrire(`Reçu de dépôt n°${numero}`, { taille: 18, font: policeGrasse, saut: 30 });
+  ecrire(`Tournée n°${tournee?.numero ?? "—"}`, { taille: 12, font: policeGrasse, saut: 18 });
+  const nomsAgents = (tournee?.agents || []).map((a) => `${a.prenom} ${a.nom}`.trim()).filter(Boolean);
+  ecrire(`Agents : ${nomsAgents.length ? nomsAgents.join(", ") : "—"}`, { taille: 10, saut: 16 });
+  // "Édité le" et non "Date du dépôt" : c'est le moment de génération du
+  // reçu, pas celui où l'argent est physiquement remis au coffre — voir la
+  // case "Dépôt réel au coffre" plus bas, remplie à la main.
+  ecrire(`Édité le : ${new Date(depot.date).toLocaleString("fr-FR")}`, { taille: 10, saut: 20 });
+  ligneSeparation();
+
+  // --- Espèces, détaillées en pièces puis billets -----------------------
+  ecrire("Espèces", { taille: 13, font: policeGrasse, saut: 20 });
   const detail = [...(depot.detail_especes || [])].sort((a, b) => b.valeur - a.valeur);
-  if (detail.length === 0) {
-    ecrire("Aucune pièce ou billet compté.", { taille: 10 });
+  const pieces = detail.filter((d) => d.valeur < 5);
+  const billets = detail.filter((d) => d.valeur >= 5);
+
+  ecrire("Pièces", { taille: 11, font: policeGrasse, saut: 18 });
+  if (pieces.length === 0) {
+    ecrire("Aucune pièce comptée.", { taille: 10, saut: 16 });
   } else {
-    for (const { valeur, quantite } of detail) {
+    for (const { valeur, quantite } of pieces) {
       const label = valeur >= 1 ? `${valeur} €` : `${Math.round(valeur * 100)} c`;
-      ecrire(`${label}  x${quantite}  =  ${formater(valeur * quantite)}`, { taille: 10, saut: 15 });
+      ligneAvecIcone(icPiece, `${label}  ×${quantite}  =  ${formater(valeur * quantite)}`);
+    }
+  }
+  y -= 6;
+
+  ecrire("Billets", { taille: 11, font: policeGrasse, saut: 18 });
+  if (billets.length === 0) {
+    ecrire("Aucun billet compté.", { taille: 10, saut: 16 });
+  } else {
+    for (const { valeur, quantite } of billets) {
+      ligneAvecIcone(
+        icBillet(couleursBillet[valeur] || couleurPiece),
+        `${valeur} €  ×${quantite}  =  ${formater(valeur * quantite)}`
+      );
     }
   }
   y -= 4;
-  ecrire(`Total espèces : ${formater(depot.montant_especes)}`, { taille: 11, font: policeGrasse });
-  y -= 8;
+  ecrire(`Total espèces : ${formater(depot.montant_especes)}`, { taille: 12, font: policeGrasse, saut: 22 });
+  ligneSeparation();
 
-  ecrire("Chèques", { taille: 12, font: policeGrasse });
-  ecrire(`Nombre de chèques : ${depot.nb_cheques}`);
-  ecrire(`Montant total des chèques : ${formater(depot.montant_cheques)}`);
-  y -= 10;
+  // --- Chèques ------------------------------------------------------------
+  ecrire("Chèques", { taille: 13, font: policeGrasse, saut: 20 });
+  ligneAvecIcone(icCheque, `Nombre de chèques : ${depot.nb_cheques}`);
+  ecrire(`Montant total des chèques : ${formater(depot.montant_cheques)}`, { taille: 10, saut: 22 });
+  ligneSeparation();
 
+  // --- Total ---------------------------------------------------------------
   ecrire(`TOTAL DÉPOSÉ : ${formater(depot.montant_especes + depot.montant_cheques)}`, {
-    taille: 14,
+    taille: 15,
     font: policeGrasse,
     saut: 40,
   });
 
-  ecrire("Signature :", { taille: 10, saut: 4 });
-  page.drawLine({ start: { x: marge, y: y - 6 }, end: { x: marge + 200, y: y - 6 }, thickness: 0.5 });
+  ecrire("Signature :", { taille: 10, saut: 6 });
+  page.drawLine({ start: { x: marge, y: y - 4 }, end: { x: marge + 200, y: y - 4 }, thickness: 0.5 });
+  y -= 40;
+
+  // --- Case à remplir à la main : date/heure du dépôt réel au coffre -------
+  page.drawRectangle({
+    x: marge - 8,
+    y: y - 60,
+    width: largeurPage - 2 * (marge - 8),
+    height: 78,
+    borderColor: couleurBordure,
+    borderWidth: 1,
+  });
+  y -= 14;
+  ecrire("Dépôt réel au coffre (à remplir à la main)", { taille: 10, font: policeGrasse, saut: 22 });
+  page.drawText("Date :", { x: marge, y, size: 10, font: police });
+  page.drawLine({ start: { x: marge + 40, y: y - 2 }, end: { x: marge + 180, y: y - 2 }, thickness: 0.5 });
+  page.drawText("Heure :", { x: marge + 195, y, size: 10, font: police });
+  page.drawLine({ start: { x: marge + 240, y: y - 2 }, end: { x: largeurPage - marge, y: y - 2 }, thickness: 0.5 });
 
   const octets = await doc.save();
   const blob = new Blob([octets], { type: "application/pdf" });
   const dateFichier = new Date(depot.date).toISOString().slice(0, 10);
-  telechargerBlob(blob, `depot-tournee-${tournee?.numero ?? "x"}-${dateFichier}.pdf`);
+  telechargerBlob(blob, `depot-tournee-${tournee?.numero ?? "x"}-n${numero}-${dateFichier}.pdf`);
 }
 
 // Remet à "à faire" les 3 passages de TOUTES les adresses, pour repartir

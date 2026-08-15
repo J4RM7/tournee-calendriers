@@ -85,10 +85,22 @@ const chequeSaisieEl = document.getElementById("cheque-saisie");
 const chequeMontantSaisieInput = document.getElementById("cheque-montant-saisie");
 const chequeValiderSaisieBtn = document.getElementById("cheque-valider-saisie");
 const comptaTotalChequesCompteEl = document.getElementById("compta-total-cheques-compte");
+const comptaChequesAttenduNbEl = document.getElementById("compta-cheques-attendu-nb");
+const comptaChequesAttenduEl = document.getElementById("compta-cheques-attendu");
+const comptaChequesEcartEl = document.getElementById("compta-cheques-ecart");
 const comptaTotalCompteEl = document.getElementById("compta-total-compte");
 const comptaTotalAttenduEl = document.getElementById("compta-total-attendu");
 const comptaEcartEl = document.getElementById("compta-ecart");
-const btnConfirmerDepot = document.getElementById("btn-confirmer-depot");
+const btnEffectuerDepot = document.getElementById("btn-effectuer-depot");
+const dialogEffectuerDepot = document.getElementById("dialog-effectuer-depot");
+const formEffectuerDepot = document.getElementById("form-effectuer-depot");
+const effectuerDepotResumeEl = document.getElementById("effectuer-depot-resume");
+const effectuerDepotMessageEl = document.getElementById("effectuer-depot-message");
+const effectuerDepotAnnulerBtn = document.getElementById("effectuer-depot-annuler");
+const depotChoixTelechargerBtn = document.querySelector('[data-depot-action="telecharger"]');
+const depotChoixAmicaleBtn = document.querySelector('[data-depot-action="amicale"]');
+const depotChoixAutreBtn = document.querySelector('[data-depot-action="autre"]');
+const depotEmailAutreInput = document.getElementById("depot-email-autre");
 const comptaMessageEl = document.getElementById("compta-message");
 const comptaHistoriqueDepotsEl = document.getElementById("compta-historique-depots");
 const comptaHistoriqueVideEl = document.getElementById("compta-historique-vide");
@@ -107,6 +119,10 @@ const statNbDonateursEl = document.getElementById("stat-nb-donateurs");
 const statNbRefusEl = document.getElementById("stat-nb-refus");
 const statNbAbsentsEl = document.getElementById("stat-nb-absents");
 const statNbLcEl = document.getElementById("stat-nb-lc");
+const statDonMaxEl = document.getElementById("stat-don-max");
+const statDonMinEl = document.getElementById("stat-don-min");
+const statDonMoyenEl = document.getElementById("stat-don-moyen");
+const statDonFrequentEl = document.getElementById("stat-don-frequent");
 const statTauxAcceptationEl = document.getElementById("stat-taux-acceptation");
 const statRepartitionDonsEl = document.getElementById("stat-repartition-dons");
 const statRepartitionRefusEl = document.getElementById("stat-repartition-refus");
@@ -582,7 +598,10 @@ async function calculerStatistiquesTournee(tourneeId) {
   let nbAbsents = 0;
   let nbLc = 0;
   let maisonsValidees = 0;
+  let donMax = null;
+  let donMin = null;
   const totauxParAnnee = new Map();
+  const occurrencesMontant = new Map();
 
   for (const { adresse } of items) {
     const dons = await getDonsByAdresse(adresse.id);
@@ -608,6 +627,9 @@ async function calculerStatistiquesTournee(tourneeId) {
       else {
         totalCourant += donCourant.montant;
         nbDonateurs++;
+        if (donMax === null || donCourant.montant > donMax) donMax = donCourant.montant;
+        if (donMin === null || donCourant.montant < donMin) donMin = donCourant.montant;
+        occurrencesMontant.set(donCourant.montant, (occurrencesMontant.get(donCourant.montant) ?? 0) + 1);
       }
     }
     if (donPrecedent && !donPrecedent.refuse) totalPrecedent += donPrecedent.montant;
@@ -627,6 +649,15 @@ async function calculerStatistiquesTournee(tourneeId) {
     historique.push({ annee, total: totauxParAnnee.get(annee) ?? 0 });
   }
 
+  let montantFrequent = null;
+  let meilleurCompte = 0;
+  for (const [montant, compte] of occurrencesMontant) {
+    if (compte > meilleurCompte) {
+      meilleurCompte = compte;
+      montantFrequent = montant;
+    }
+  }
+
   return {
     totalCourant,
     totalPrecedent,
@@ -634,6 +665,10 @@ async function calculerStatistiquesTournee(tourneeId) {
     nbRefus,
     nbAbsents,
     nbLc,
+    donMax,
+    donMin,
+    donMoyen: nbDonateurs ? totalCourant / nbDonateurs : null,
+    montantFrequent,
     totalMaisons: items.length,
     maisonsValidees,
     historique,
@@ -712,6 +747,10 @@ async function afficherStatistiques() {
         nbRefus: 0,
         nbAbsents: 0,
         nbLc: 0,
+        donMax: null,
+        donMin: null,
+        donMoyen: null,
+        montantFrequent: null,
         totalMaisons: 0,
         maisonsValidees: 0,
         historique: [],
@@ -773,6 +812,10 @@ async function afficherStatistiques() {
   statNbRefusEl.textContent = String(stats.nbRefus);
   statNbAbsentsEl.textContent = String(stats.nbAbsents);
   statNbLcEl.textContent = String(stats.nbLc);
+  statDonMaxEl.textContent = stats.donMax === null ? "—" : formaterMontant(stats.donMax);
+  statDonMinEl.textContent = stats.donMin === null ? "—" : formaterMontant(stats.donMin);
+  statDonMoyenEl.textContent = stats.donMoyen === null ? "—" : formaterMontant(stats.donMoyen);
+  statDonFrequentEl.textContent = stats.montantFrequent === null ? "—" : formaterMontant(stats.montantFrequent);
 
   const totalReponses = stats.nbDonateurs + stats.nbRefus;
   const partDons = totalReponses ? Math.round((stats.nbDonateurs / totalReponses) * 100) : 0;
@@ -853,6 +896,7 @@ function brancherStepper(el, { onChange }) {
 
 let tallyEspeces = new Map(DENOMINATIONS.map((d) => [d.valeur, 0]));
 let comptaTotalAttenduActuel = 0;
+let comptaAttenduCheques = { nb: 0, montant: 0 };
 let denominationsControleurs = [];
 
 // Construites une seule fois (les <li> sont des noeuds DOM stables) : chaque
@@ -978,6 +1022,16 @@ function recalculerTotaux() {
   for (const [valeur, quantite] of tallyCheques) montantCheques += valeur * quantite;
   comptaTotalChequesCompteEl.textContent = formaterMontant(montantCheques);
 
+  comptaChequesAttenduNbEl.textContent = `${comptaAttenduCheques.nb} chèque${comptaAttenduCheques.nb > 1 ? "s" : ""}`;
+  comptaChequesAttenduEl.textContent = formaterMontant(comptaAttenduCheques.montant);
+  const ecartCheques = montantCheques - comptaAttenduCheques.montant;
+  comptaChequesEcartEl.className =
+    "compta-ecart " + (Math.abs(ecartCheques) < 0.01 ? "ok" : ecartCheques > 0 ? "sur" : "sous");
+  comptaChequesEcartEl.textContent =
+    Math.abs(ecartCheques) < 0.01
+      ? "Correspond aux chèques enregistrés."
+      : `Écart : ${ecartCheques > 0 ? "+" : ""}${formaterMontant(ecartCheques)} par rapport à l'attendu`;
+
   const totalCompte = totalEspeces + montantCheques;
   comptaTotalCompteEl.textContent = formaterMontant(totalCompte);
   comptaTotalAttenduEl.textContent = formaterMontant(comptaTotalAttenduActuel);
@@ -1002,8 +1056,18 @@ function formaterDateDepot(iso) {
   });
 }
 
+// Les dépôts ne sont jamais supprimés (voir schema.sql, table append-only) :
+// leur numéro d'ordre est donc simplement leur position chronologique parmi
+// les dépôts de la tournée, recalculée à chaque affichage plutôt que stockée
+// — toujours stable, sans colonne SQL supplémentaire.
+function numeroterDepots(depots) {
+  const parDateAsc = [...depots].sort((a, b) => new Date(a.date) - new Date(b.date));
+  return new Map(parDateAsc.map((d, i) => [d.id, i + 1]));
+}
+
 async function rafraichirHistoriqueDepots() {
   const depots = tourneeActuelleId ? await getDepotsByTournee(tourneeActuelleId) : [];
+  const numeros = numeroterDepots(depots);
   depots.sort((a, b) => new Date(b.date) - new Date(a.date));
 
   comptaHistoriqueDepotsEl.innerHTML = "";
@@ -1012,7 +1076,7 @@ async function rafraichirHistoriqueDepots() {
   for (const depot of depots) {
     const li = document.createElement("li");
     const total = depot.montant_especes + depot.montant_cheques;
-    li.innerHTML = `<span>${formaterDateDepot(depot.date)}</span><span>${formaterMontant(total)}</span>`;
+    li.innerHTML = `<span>Dépôt n°${numeros.get(depot.id)} — ${formaterDateDepot(depot.date)}</span><span>${formaterMontant(total)}</span>`;
     comptaHistoriqueDepotsEl.appendChild(li);
   }
 }
@@ -1032,31 +1096,74 @@ async function afficherCompta() {
     ? await calculerComptaTournee(tourneeActuelleId)
     : { nbEspeces: 0, totalEspeces: 0, nbCheques: 0, totalCheques: 0 };
   comptaTotalAttenduActuel = compta.totalEspeces + compta.totalCheques;
+  comptaAttenduCheques = { nb: compta.nbCheques, montant: compta.totalCheques };
   recalculerTotaux();
 
   await rafraichirHistoriqueDepots();
 }
 
-btnConfirmerDepot.addEventListener("click", async () => {
+// Les 3 pavés d'action (télécharger / envoyer à l'amicale / envoyer à une
+// autre adresse) sont de simples toggles indépendants, pas un choix exclusif
+// — on peut vouloir télécharger ET envoyer par mail.
+[depotChoixTelechargerBtn, depotChoixAmicaleBtn, depotChoixAutreBtn].forEach((btn) => {
+  btn.addEventListener("click", () => {
+    btn.classList.toggle("actif");
+    depotEmailAutreInput.hidden = !depotChoixAutreBtn.classList.contains("actif");
+  });
+});
+
+btnEffectuerDepot.addEventListener("click", () => {
   if (!tourneeActuelleId) return;
 
-  const { totalEspeces, montantCheques } = recalculerTotaux();
+  const { totalEspeces, montantCheques, totalCompte } = recalculerTotaux();
   if (totalEspeces <= 0 && montantCheques <= 0) {
     comptaMessageEl.textContent = "Rien à déposer : comptez au moins une pièce, un billet ou un chèque.";
     comptaMessageEl.className = "connexion-message erreur";
     return;
   }
+  comptaMessageEl.textContent = "";
+  comptaMessageEl.className = "connexion-message";
 
-  const confirme = window.confirm(
-    `Confirmer le dépôt de ${formaterMontant(totalEspeces + montantCheques)} ` +
-      `(${formaterMontant(totalEspeces)} en espèces + ${formaterMontant(montantCheques)} en chèques) ? ` +
-      `Le comptage sera remis à zéro.`
-  );
-  if (!confirme) return;
+  effectuerDepotResumeEl.textContent =
+    `Dépôt de ${formaterMontant(totalCompte)} ` +
+    `(${formaterMontant(totalEspeces)} en espèces + ${formaterMontant(montantCheques)} en chèques).`;
 
+  depotChoixTelechargerBtn.classList.add("actif");
+  depotChoixAmicaleBtn.classList.remove("actif");
+  depotChoixAutreBtn.classList.remove("actif");
+  depotEmailAutreInput.hidden = true;
+  depotEmailAutreInput.value = "";
+  effectuerDepotMessageEl.textContent = "";
+  effectuerDepotMessageEl.className = "connexion-message";
+
+  dialogEffectuerDepot.showModal();
+});
+
+effectuerDepotAnnulerBtn.addEventListener("click", () => dialogEffectuerDepot.close());
+
+formEffectuerDepot.addEventListener("submit", async (event) => {
+  // method="dialog" fermerait la fenêtre avant la fin de l'enregistrement
+  // sans ce preventDefault (même raison que formDon).
+  event.preventDefault();
+  if (!tourneeActuelleId) return;
+
+  const veutTelecharger = depotChoixTelechargerBtn.classList.contains("actif");
+  const veutAmicale = depotChoixAmicaleBtn.classList.contains("actif");
+  const veutAutre = depotChoixAutreBtn.classList.contains("actif");
+  const emailAutre = depotEmailAutreInput.value.trim();
+
+  if (veutAutre && !emailAutre) {
+    effectuerDepotMessageEl.textContent = "Indique une adresse email avant d'enregistrer.";
+    effectuerDepotMessageEl.className = "connexion-message erreur";
+    return;
+  }
+
+  const { totalEspeces, montantCheques } = recalculerTotaux();
   const detailEspeces = [...tallyEspeces.entries()]
     .filter(([, quantite]) => quantite > 0)
     .map(([valeur, quantite]) => ({ valeur, quantite }));
+
+  const numero = (await getDepotsByTournee(tourneeActuelleId)).length + 1;
 
   const depot = await addDepot({
     tournee_id: tourneeActuelleId,
@@ -1069,15 +1176,25 @@ btnConfirmerDepot.addEventListener("click", async () => {
 
   await pousserVersSupabase("depots", depot);
 
-  comptaMessageEl.textContent = "Dépôt enregistré.";
-  comptaMessageEl.className = "connexion-message succes";
-
-  try {
-    const tournee = await getTournee(tourneeActuelleId);
-    await genererRapportDepot(depot, tournee);
-  } catch (err) {
-    console.error("Erreur lors de la génération du reçu de dépôt :", err);
+  if (veutTelecharger) {
+    try {
+      const tournee = await getTournee(tourneeActuelleId);
+      await genererRapportDepot(depot, tournee, numero);
+    } catch (err) {
+      console.error("Erreur lors de la génération du reçu de dépôt :", err);
+    }
   }
+
+  dialogEffectuerDepot.close();
+
+  // L'envoi par email n'est pas encore raccordé (pas de compte Resend
+  // configuré) : on le dit clairement plutôt que de laisser croire qu'un
+  // email est parti.
+  comptaMessageEl.textContent =
+    veutAmicale || veutAutre
+      ? `Dépôt n°${numero} enregistré. L'envoi par email n'est pas encore disponible — pense à transmettre le reçu autrement pour l'instant.`
+      : `Dépôt n°${numero} enregistré.`;
+  comptaMessageEl.className = "connexion-message succes";
 
   reinitialiserComptage();
   await rafraichirHistoriqueDepots();
@@ -2360,6 +2477,7 @@ async function rafraichirAdminTourneeDetail() {
 
 async function rafraichirDepotsTourneeAdmin(supabase) {
   const depots = await listerDepotsTournee(supabase, tourneeDetailCourante);
+  const numeros = numeroterDepots(depots);
 
   adminTourneeDetailDepotsEl.innerHTML = "";
   adminTourneeDetailDepotsVideEl.hidden = depots.length > 0;
@@ -2367,7 +2485,7 @@ async function rafraichirDepotsTourneeAdmin(supabase) {
   for (const depot of depots) {
     const li = document.createElement("li");
     const total = depot.montant_especes + depot.montant_cheques;
-    li.innerHTML = `<span>${formaterDateDepot(depot.date)}</span><span>${formaterMontant(total)}</span>`;
+    li.innerHTML = `<span>Dépôt n°${numeros.get(depot.id)} — ${formaterDateDepot(depot.date)}</span><span>${formaterMontant(total)}</span>`;
     adminTourneeDetailDepotsEl.appendChild(li);
   }
 }

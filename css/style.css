@@ -1245,6 +1245,13 @@ dialog::backdrop {
   flex: 1;
 }
 
+.effectuer-depot-choix {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 0.75rem 0;
+}
+
 .compta-comparaison-ligne {
   display: flex;
   justify-content: space-between;
